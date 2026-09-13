@@ -3,7 +3,7 @@ id: RPT-2026-09-13-serialization-retry-leak
 type: incident
 status: verified
 date: 2026-09-13
-vault_sync: pending
+vault_sync: synced
 ---
 
 # Serializable deployment-intent retry leak
@@ -38,3 +38,4 @@ Keep typed adapter error-shape tests beside each Serializable repository and ret
 - [Deployment intent PostgreSQL tests](../../packages/database/test/deployment-intent.integration.test.ts)
 - [M2 completion report](session-2026-09-13-m2-complete.md)
 - [ADR 0002](../architecture/decisions/0002-postgres-outbox-and-kafka.md)
+- [VictusOS M2 distillation](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20M2%20Complete.md)
