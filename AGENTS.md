@@ -2,6 +2,10 @@
 
 User instructions take precedence over this file. Keep changes scoped to the requested milestone and preserve the MVP boundaries in `docs/product/mvp-scope.md`.
 
+## Codex çalışma protokolü
+
+Repository içindeki [Codex Çalışma Protokolü](docs/process/codex-calisma-protokolu.md) bu projede zorunludur. Her görevde kapsamı ve bitiş kriterini önce belirle; yalnızca doğrudan ilgili dosyalara dokun; uygun minimum doğrulamayı çalıştır; önemli değişikliklerde ikinci review yap; görev dışı sorunları düzeltmeden bildir; görev sonunda değişiklikleri, doğrulamayı, sonucu, riskleri ve varsayımları raporla. Doğrulanmış ve kapsamı temiz tamamlanmış işler için agent ilgili dosyaları kendi inisiyatifiyle commit edebilir ve hash’i raporlamalıdır; push için kullanıcıdan açık izin gerekir.
+
 ## Start here
 
 - Read `docs/architecture/system-design.md` before changing component boundaries.
