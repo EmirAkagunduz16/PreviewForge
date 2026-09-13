@@ -4,6 +4,7 @@ import {
   DeploymentClaimRepository,
   DeploymentClaimValidationError,
   KafkaDeliveryIdentityConflictError,
+  KafkaDeliveryOutcomeConflictError,
   LeaseFenceError,
 } from "../src/deployment-claim-repository.js";
 import { createPrismaClient, type PrismaClient } from "../src/prisma-client.js";
@@ -37,6 +38,8 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
       BigInt(fixture.offset),
       BigInt(fixture.offset + 1),
       BigInt(fixture.offset + 2),
+      BigInt(fixture.offset + 3),
+      BigInt(fixture.offset + 4),
     ]);
     await prisma.kafkaDelivery.deleteMany({
       where: { consumerName: CONSUMER, topic: TOPIC, partition: 0, offset: { in: offsets } },
@@ -348,7 +351,8 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
       delivery: metadata,
       errorCode: "BROKER_TIMEOUT",
       message: `temporary failure ${secret}`,
-      retryDelayMs: 1_000,
+      retryBaseDelayMs: 1_000,
+      retryMaxDelayMs: 1_000,
     });
     await repository.recordDeadLetter({
       delivery: metadata,
@@ -396,6 +400,129 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
         message: "conflicting outcome",
       }),
     ).rejects.toBeInstanceOf(KafkaDeliveryIdentityConflictError);
+  });
+
+  it("uses capped exponential retry delays from durable attempt numbers", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const deterministic = new DeploymentClaimRepository(prisma, () => 0);
+    const retryDelivery = { ...delivery(fixture), offset: fixture.offset + 3 };
+    const first = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary",
+      maxAttempts: 5,
+      retryBaseDelayMs: 100,
+      retryMaxDelayMs: 1_000,
+    });
+    expect(first).toMatchObject({ outcome: "RETRY_SCHEDULED", attempts: 1 });
+    const firstRow = await prisma.kafkaDelivery.findUnique({
+      where: {
+        consumerName_topic_partition_offset: {
+          consumerName: CONSUMER,
+          topic: TOPIC,
+          partition: 0,
+          offset: BigInt(retryDelivery.offset),
+        },
+      },
+    });
+    expectDelay(firstRow, 100);
+
+    const second = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary again",
+      maxAttempts: 5,
+      retryBaseDelayMs: 100,
+      retryMaxDelayMs: 1_000,
+    });
+    expect(second).toMatchObject({ outcome: "RETRY_SCHEDULED", attempts: 2 });
+    const secondRow = await prisma.kafkaDelivery.findUnique({
+      where: {
+        consumerName_topic_partition_offset: {
+          consumerName: CONSUMER,
+          topic: TOPIC,
+          partition: 0,
+          offset: BigInt(retryDelivery.offset),
+        },
+      },
+    });
+    expectDelay(secondRow, 200);
+
+    const capped = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary capped",
+      maxAttempts: 5,
+      retryBaseDelayMs: 100,
+      retryMaxDelayMs: 250,
+    });
+    expect(capped).toMatchObject({ outcome: "RETRY_SCHEDULED", attempts: 3 });
+    const cappedRow = await prisma.kafkaDelivery.findUnique({
+      where: {
+        consumerName_topic_partition_offset: {
+          consumerName: CONSUMER,
+          topic: TOPIC,
+          partition: 0,
+          offset: BigInt(retryDelivery.offset),
+        },
+      },
+    });
+    expectDelay(cappedRow, 250);
+  });
+
+  it("converts a retryable outcome to dead letter at the max attempt and keeps dead letters idempotent", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const deterministic = new DeploymentClaimRepository(prisma, () => 0);
+    const retryDelivery = { ...delivery(fixture), offset: fixture.offset + 4 };
+    const scheduled = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary",
+      maxAttempts: 2,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+    expect(scheduled).toMatchObject({ outcome: "RETRY_SCHEDULED", attempts: 1 });
+    const dead = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary final",
+      maxAttempts: 2,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+    expect(dead).toMatchObject({
+      outcome: "DEAD_LETTER",
+      attempts: 2,
+      deadLetteredAt: expect.any(Date),
+    });
+    const repeated = await deterministic.recordDeadLetter({
+      delivery: retryDelivery,
+      errorCode: "OTHER_ERROR",
+      message: "must not rewrite terminal metadata",
+    });
+    expect(repeated).toEqual(dead);
+  });
+
+  it("fails closed when a processed delivery receives another outcome", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const claimed = await repository.claimRequestedDeployment({
+      delivery: delivery(fixture),
+      event: fixture.event,
+      workerId: "worker-processed-outcome",
+      leaseTtlMs: 30_000,
+    });
+    expect(claimed.kind).toBe("CLAIMED");
+    await expect(
+      repository.recordDeadLetter({
+        delivery: delivery(fixture),
+        errorCode: "LATE_FAILURE",
+        message: "processed already",
+      }),
+    ).rejects.toBeInstanceOf(KafkaDeliveryOutcomeConflictError);
   });
 
   it.each(["projectId", "repositoryFullName", "installationId"])(
@@ -466,7 +593,8 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
       delivery: scheduled,
       errorCode: "BROKER_TIMEOUT",
       message: "temporary",
-      retryDelayMs: 500,
+      retryBaseDelayMs: 500,
+      retryMaxDelayMs: 500,
     });
     await expect(
       repository.claimRequestedDeployment({
@@ -486,12 +614,15 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
     const scheduled = { ...delivery(fixture), offset: fixture.offset + 1 };
-    await repository.scheduleRetry({
+    const deterministicRepository = new DeploymentClaimRepository(prisma, () => 0);
+    await deterministicRepository.scheduleRetry({
       delivery: scheduled,
       errorCode: "BROKER_TIMEOUT",
       message: "temporary",
-      retryDelayMs: 0,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
     });
+    await waitForDeliveryAvailability(prisma, scheduled.offset);
     const result = await repository.claimRequestedDeployment({
       delivery: scheduled,
       event: fixture.event,
@@ -511,6 +642,53 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
         },
       }),
     ).toMatchObject({ status: "PROCESSED", attempts: 2 });
+  });
+
+  it("rolls back a due-retry attempt reservation when claim processing fails", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const deterministic = new DeploymentClaimRepository(prisma, () => 0);
+    const retryDelivery = { ...delivery(fixture), offset: fixture.offset + 1 };
+    await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary",
+      maxAttempts: 5,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+    await waitForDeliveryAvailability(prisma, retryDelivery.offset);
+    await expect(
+      deterministic.claimRequestedDeployment({
+        delivery: retryDelivery,
+        event: fixture.event,
+        workerId: "worker-due-retry-fault",
+        leaseTtlMs: 30_000,
+        faultInjector: () => {
+          throw new Error("injected due retry fault");
+        },
+      }),
+    ).rejects.toThrow("injected due retry fault");
+    const rolledBack = await prisma.kafkaDelivery.findUnique({
+      where: {
+        consumerName_topic_partition_offset: {
+          consumerName: CONSUMER,
+          topic: TOPIC,
+          partition: 0,
+          offset: BigInt(retryDelivery.offset),
+        },
+      },
+    });
+    expect(rolledBack).toMatchObject({ status: "RETRY_SCHEDULED", attempts: 1 });
+    const rescheduled = await deterministic.scheduleRetry({
+      delivery: retryDelivery,
+      errorCode: "BROKER_TIMEOUT",
+      message: "temporary after rollback",
+      maxAttempts: 5,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+    expect(rescheduled).toMatchObject({ outcome: "RETRY_SCHEDULED", attempts: 2 });
   });
 
   it("fails closed when a queued deployment already has a semantic receipt", async () => {
@@ -594,7 +772,7 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
         delivery: { ...delivery(fixture), offset: fixture.offset + 1 },
         errorCode: "BROKER_TIMEOUT",
         message: "temporary",
-        retryDelayMs: 24 * 60 * 60 * 1_000 + 1,
+        retryBaseDelayMs: 24 * 60 * 60 * 1_000 + 1,
       }),
     ).toThrow(DeploymentClaimValidationError);
     await expect(
@@ -726,6 +904,36 @@ async function waitForLeaseExpiry(prisma: PrismaClient, deploymentId: string): P
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("lease did not expire within bounded test window");
+}
+
+async function waitForDeliveryAvailability(prisma: PrismaClient, offset: number): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const row = await prisma.kafkaDelivery.findUnique({
+      where: {
+        consumerName_topic_partition_offset: {
+          consumerName: CONSUMER,
+          topic: TOPIC,
+          partition: 0,
+          offset: BigInt(offset),
+        },
+      },
+      select: { availableAt: true },
+    });
+    const server = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS "now"`;
+    if (row?.availableAt && server[0] && server[0].now >= row.availableAt) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Kafka delivery retry did not become available within bounded test window");
+}
+
+function expectDelay(
+  row: { availableAt: Date; lastAttemptAt: Date | null } | null,
+  expected: number,
+): void {
+  if (row?.lastAttemptAt === null || row === null)
+    throw new Error("delivery attempt timestamp missing");
+  expect(row.availableAt.getTime() - row.lastAttemptAt.getTime()).toBe(expected);
 }
 
 async function expectCleanQueued(prisma: PrismaClient, fixture: Fixture): Promise<void> {

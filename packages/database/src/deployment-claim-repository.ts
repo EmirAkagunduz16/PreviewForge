@@ -15,6 +15,10 @@ const MAX_ERROR_MESSAGE_LENGTH = 2_000;
 const MAX_NAME_LENGTH = 128;
 const MAX_LEASE_TTL_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETRY_DELAY_MS = 24 * 60 * 60 * 1_000;
+const DEFAULT_DELIVERY_MAX_ATTEMPTS = 5;
+const MAX_DELIVERY_ATTEMPTS = 100;
+const DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
+const MAX_JITTER_RATIO = 0.25;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const DEPLOYMENT_REQUEST_TOPIC = "previewforge.deployment-requests.v1";
 
@@ -64,7 +68,15 @@ export type KafkaDeliveryOutcomeInput = {
   event?: Partial<Pick<DeploymentRequested, "eventId" | "eventType" | "environmentId">>;
   errorCode: string;
   message: string;
-  retryDelayMs?: number;
+  maxAttempts?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
+};
+export type KafkaDeliveryOutcomeResult = {
+  outcome: "RETRY_SCHEDULED" | "DEAD_LETTER";
+  attempts: number;
+  availableAt: Date;
+  deadLetteredAt: Date | null;
 };
 
 export class DeploymentClaimValidationError extends Error {
@@ -78,6 +90,13 @@ export class KafkaDeliveryIdentityConflictError extends Error {
   constructor() {
     super("Kafka delivery offset identity conflicts with an existing delivery");
     this.name = "KafkaDeliveryIdentityConflictError";
+  }
+}
+export class KafkaDeliveryOutcomeConflictError extends Error {
+  readonly code = "KAFKA_DELIVERY_PROCESSED";
+  constructor() {
+    super("processed Kafka delivery cannot receive another outcome");
+    this.name = "KafkaDeliveryOutcomeConflictError";
   }
 }
 export type DeploymentClaimConflictCode =
@@ -136,7 +155,10 @@ type DeploymentWithEnvironment = Prisma.DeploymentGetPayload<{
 }>;
 
 export class DeploymentClaimRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly random: () => number = Math.random,
+  ) {}
 
   async claimRequestedDeployment(input: DeploymentClaimInput): Promise<DeploymentClaimResult> {
     const event = validateClaimInput(input);
@@ -456,22 +478,24 @@ export class DeploymentClaimRepository {
       return true;
     });
   }
-  recordDeadLetter(input: KafkaDeliveryOutcomeInput): Promise<void> {
+  recordDeadLetter(input: KafkaDeliveryOutcomeInput): Promise<KafkaDeliveryOutcomeResult> {
+    validateOutcomeOptions(input, false);
     return this.recordDeliveryOutcome(input, "DEAD_LETTER");
   }
-  scheduleRetry(input: KafkaDeliveryOutcomeInput): Promise<void> {
-    if (input.retryDelayMs === undefined)
-      throw new DeploymentClaimValidationError("retryDelayMs is required");
-    validateBoundedDuration(input.retryDelayMs, "retryDelayMs", true);
+  scheduleRetry(input: KafkaDeliveryOutcomeInput): Promise<KafkaDeliveryOutcomeResult> {
+    validateOutcomeOptions(input, true);
     return this.recordDeliveryOutcome(input, "RETRY_SCHEDULED");
   }
   private async recordDeliveryOutcome(
     input: KafkaDeliveryOutcomeInput,
     status: "DEAD_LETTER" | "RETRY_SCHEDULED",
-  ): Promise<void> {
+  ): Promise<KafkaDeliveryOutcomeResult> {
     validateDeliveryIdentity(input.delivery);
     validateError(input.errorCode, input.message);
-    await withSerializableRetry(this.prisma, async (tx) => {
+    const maxAttempts = input.maxAttempts ?? DEFAULT_DELIVERY_MAX_ATTEMPTS;
+    const retryBaseDelayMs = input.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
+    const retryMaxDelayMs = input.retryMaxDelayMs ?? MAX_RETRY_DELAY_MS;
+    return withSerializableRetry(this.prisma, async (tx) => {
       const now = await serverNow(tx);
       const existing = await tx.kafkaDelivery.findUnique({
         where: { consumerName_topic_partition_offset: deliveryKey(input.delivery) },
@@ -488,13 +512,28 @@ export class DeploymentClaimRepository {
           existing.aggregateId !== (input.delivery.aggregateId ?? null))
       )
         throw new KafkaDeliveryIdentityConflictError();
-      const availableAt =
-        status === "RETRY_SCHEDULED" ? new Date(now.getTime() + (input.retryDelayMs ?? 0)) : now;
+      if (existing?.status === "PROCESSED") throw new KafkaDeliveryOutcomeConflictError();
+      if (existing?.status === "DEAD_LETTER") {
+        return {
+          outcome: "DEAD_LETTER",
+          attempts: existing.attempts,
+          availableAt: existing.availableAt,
+          deadLetteredAt: existing.deadLetteredAt,
+        };
+      }
+      const attempts = existing === null ? 1 : existing.attempts + 1;
+      const terminal = status === "DEAD_LETTER" || attempts >= maxAttempts;
+      const availableAt = terminal
+        ? now
+        : new Date(
+            now.getTime() +
+              retryDelayMsForAttempt(attempts, retryBaseDelayMs, retryMaxDelayMs, this.random),
+          );
       const commonData = {
-        status,
+        status: terminal ? "DEAD_LETTER" : "RETRY_SCHEDULED",
         lastAttemptAt: now,
         processedAt: null,
-        deadLetteredAt: status === "DEAD_LETTER" ? now : null,
+        deadLetteredAt: terminal ? now : null,
         errorCode: input.errorCode,
         errorMessage: redactErrorMessage(input.message),
         updatedAt: now,
@@ -504,15 +543,21 @@ export class DeploymentClaimRepository {
           data: {
             ...deliveryCreateData(input.delivery, input.event),
             ...commonData,
-            attempts: 1,
+            attempts,
             availableAt,
           },
         });
-      else if (existing.status !== "PROCESSED" && existing.status !== "DEAD_LETTER")
+      else
         await tx.kafkaDelivery.update({
           where: { id: existing.id },
-          data: { ...commonData, attempts: { increment: 1 }, availableAt },
+          data: { ...commonData, attempts, availableAt },
         });
+      return {
+        outcome: terminal ? "DEAD_LETTER" : "RETRY_SCHEDULED",
+        attempts,
+        availableAt,
+        deadLetteredAt: terminal ? now : null,
+      };
     });
   }
 }
@@ -581,6 +626,25 @@ function validateBoundedDuration(value: number, field: string, allowZero: boolea
   const maximum = field === "retryDelayMs" ? MAX_RETRY_DELAY_MS : MAX_LEASE_TTL_MS;
   if (value > maximum)
     throw new DeploymentClaimValidationError(`${field} exceeds the maximum allowed duration`);
+}
+function validateOutcomeOptions(input: KafkaDeliveryOutcomeInput, scheduled: boolean): void {
+  validatePositiveIntegerOption(
+    input.maxAttempts ?? DEFAULT_DELIVERY_MAX_ATTEMPTS,
+    "maxAttempts",
+    MAX_DELIVERY_ATTEMPTS,
+  );
+  if (!scheduled && input.retryBaseDelayMs === undefined && input.retryMaxDelayMs === undefined)
+    return;
+  const base = input.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
+  const maximum = input.retryMaxDelayMs ?? MAX_RETRY_DELAY_MS;
+  validatePositiveIntegerOption(base, "retryBaseDelayMs", MAX_RETRY_DELAY_MS);
+  validatePositiveIntegerOption(maximum, "retryMaxDelayMs", MAX_RETRY_DELAY_MS);
+  if (base > maximum)
+    throw new DeploymentClaimValidationError("retryBaseDelayMs cannot exceed retryMaxDelayMs");
+}
+function validatePositiveIntegerOption(value: number, field: string, maximum: number): void {
+  if (!Number.isInteger(value) || value < 1 || value > maximum)
+    throw new DeploymentClaimValidationError(`${field} is outside the supported range`);
 }
 function validateName(value: string, field: string, max = MAX_NAME_LENGTH): void {
   if (
@@ -821,6 +885,24 @@ function toBigInt(value: bigint | number | string): bigint {
 }
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+function retryDelayMsForAttempt(
+  attempt: number,
+  baseDelayMs: number,
+  maximumDelayMs: number,
+  random: () => number,
+): number {
+  const jitter = random();
+  if (!Number.isFinite(jitter) || jitter < 0 || jitter > 1)
+    throw new DeploymentClaimValidationError("retry jitter must be between 0 and 1");
+  const exponential = Math.min(
+    maximumDelayMs,
+    baseDelayMs * 2 ** Math.min(Math.max(attempt - 1, 0), 31),
+  );
+  return Math.min(
+    maximumDelayMs,
+    exponential + Math.floor(exponential * MAX_JITTER_RATIO * jitter),
+  );
 }
 async function serverNow(tx: TransactionClient): Promise<Date> {
   const rows = await tx.$queryRaw<Array<{ now: Date }>>(
