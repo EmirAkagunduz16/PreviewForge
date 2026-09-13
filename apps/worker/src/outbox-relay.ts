@@ -3,6 +3,13 @@ import { producerSendOptions } from "./kafka/client.js";
 
 export const DEFAULT_OUTBOX_BATCH_SIZE = 50;
 export const MAX_OUTBOX_BATCH_SIZE = 100;
+export const DEFAULT_OUTBOX_LEASE_DURATION_MS = 30_000;
+export const MAX_OUTBOX_LEASE_DURATION_MS = 86_400_000;
+export const DEFAULT_OUTBOX_MAX_ATTEMPTS = 5;
+export const MAX_OUTBOX_MAX_ATTEMPTS = 100;
+export const DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
+export const MAX_RETRY_DELAY_MS = 86_400_000;
+const RETRY_JITTER_RATIO = 0.25;
 
 export type OutboxRelayRow = {
   id: string;
@@ -10,12 +17,14 @@ export type OutboxRelayRow = {
   aggregateType: string;
   aggregateId: string;
   payload: unknown;
+  attempts: number;
   claimToken: string | null;
 };
 
 export type OutboxRelayClaimInput = {
   limit: number;
   owner: string;
+  maxAttempts?: number;
 };
 
 export type OutboxRelayFailureInput = {
@@ -34,8 +43,16 @@ export type OutboxRelayRepository = {
   claimBatch(
     input: OutboxRelayClaimInput & { leaseDurationMs?: number },
   ): Promise<readonly OutboxRelayRow[]>;
-  markPublished(id: string, claimToken: string): Promise<unknown>;
-  recordFailure(input: OutboxRelayFailureInput): Promise<unknown>;
+  markPublished(id: string, claimToken: string): Promise<OutboxRelayPublishResult>;
+  recordFailure(input: OutboxRelayFailureInput): Promise<OutboxRelayFailureResult>;
+};
+
+export type OutboxRelayPublishResult = {
+  outcome: "PUBLISHED" | "ALREADY_PUBLISHED";
+};
+
+export type OutboxRelayFailureResult = {
+  outcome: "RETRY_SCHEDULED" | "DEAD_LETTER";
 };
 
 type PublishOptions = NonNullable<ReturnType<typeof producerSendOptions>>;
@@ -47,6 +64,11 @@ export type OutboxRelayProducer = {
 export type OutboxRelayOptions = {
   owner: string;
   batchSize?: number;
+  leaseDurationMs?: number;
+  maxAttempts?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
+  random?: () => number;
 };
 
 export type OutboxRelayResult = {
@@ -54,6 +76,7 @@ export type OutboxRelayResult = {
   published: number;
   retryableFailures: number;
   deadLettered: number;
+  alreadyPublished: number;
   failed: number;
   staleClaims: number;
   missingClaims: number;
@@ -70,19 +93,49 @@ export async function relayOutboxBatch(
 ): Promise<OutboxRelayResult> {
   const owner = validateOwner(options.owner);
   const limit = boundedBatchSize(options.batchSize);
-  const rows = await repository.claimBatch({ limit, owner });
+  const leaseDurationMs = boundedPositiveInteger(
+    options.leaseDurationMs ?? DEFAULT_OUTBOX_LEASE_DURATION_MS,
+    "outbox lease duration",
+    MAX_OUTBOX_LEASE_DURATION_MS,
+  );
+  const maxAttempts = boundedPositiveInteger(
+    options.maxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
+    "outbox maximum attempts",
+    MAX_OUTBOX_MAX_ATTEMPTS,
+  );
+  const retryBaseDelayMs = boundedPositiveInteger(
+    options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
+    "retry base delay",
+    MAX_RETRY_DELAY_MS,
+  );
+  const retryMaxDelayMs = boundedPositiveInteger(
+    options.retryMaxDelayMs ?? MAX_RETRY_DELAY_MS,
+    "retry maximum delay",
+    MAX_RETRY_DELAY_MS,
+  );
+  if (retryBaseDelayMs > retryMaxDelayMs) {
+    throw new Error("retry base delay cannot exceed retry maximum delay");
+  }
+  const random = options.random ?? Math.random;
+  const rows = await repository.claimBatch({ limit, owner, leaseDurationMs, maxAttempts });
   const result: OutboxRelayResult = {
     claimed: rows.length,
     published: 0,
     retryableFailures: 0,
     deadLettered: 0,
+    alreadyPublished: 0,
     failed: 0,
     staleClaims: 0,
     missingClaims: 0,
   };
 
   for (const row of rows) {
-    await relayRow(repository, producer, row, result);
+    await relayRow(repository, producer, row, result, {
+      maxAttempts,
+      retryBaseDelayMs,
+      retryMaxDelayMs,
+      random,
+    });
   }
 
   return result;
@@ -93,7 +146,16 @@ async function relayRow(
   producer: OutboxRelayProducer,
   row: OutboxRelayRow,
   result: OutboxRelayResult,
+  retryOptions: RetryOptions,
 ): Promise<void> {
+  if (
+    !Number.isInteger(row.attempts) ||
+    row.attempts < 1 ||
+    row.attempts > retryOptions.maxAttempts
+  ) {
+    result.failed += 1;
+    return;
+  }
   const claimToken = row.claimToken;
   if (claimToken === null) {
     result.failed += 1;
@@ -107,8 +169,14 @@ async function relayRow(
     normalized = normalizeOutboxEvent(row);
   } catch (error) {
     const failure = classifyFailure(error);
-    const recorded = await recordFailureSafely(repository, claimedRow, failure, result);
-    if (recorded) result.deadLettered += 1;
+    const recorded = await recordFailureSafely(
+      repository,
+      claimedRow,
+      failure,
+      result,
+      retryOptions,
+    );
+    countFailureOutcome(result, recorded);
     return;
   }
 
@@ -124,11 +192,14 @@ async function relayRow(
     );
   } catch (error) {
     const failure = classifyFailure(error);
-    const recorded = await recordFailureSafely(repository, claimedRow, failure, result);
-    if (recorded) {
-      if (failure.retryable) result.retryableFailures += 1;
-      else result.deadLettered += 1;
-    }
+    const recorded = await recordFailureSafely(
+      repository,
+      claimedRow,
+      failure,
+      result,
+      retryOptions,
+    );
+    countFailureOutcome(result, recorded);
     return;
   }
 
@@ -136,8 +207,9 @@ async function relayRow(
   // the claimed row published. If this fails, leave the row reclaimable and
   // do not write a failure using a potentially stale claim token.
   try {
-    await repository.markPublished(claimedRow.id, claimedRow.claimToken);
-    result.published += 1;
+    const settled = await repository.markPublished(claimedRow.id, claimedRow.claimToken);
+    if (settled.outcome === "PUBLISHED") result.published += 1;
+    else result.alreadyPublished += 1;
   } catch (error) {
     result.failed += 1;
     if (isStaleClaimError(error)) result.staleClaims += 1;
@@ -149,9 +221,18 @@ async function recordFailureSafely(
   row: OutboxRelayRow & { claimToken: string },
   failure: ClassifiedFailure,
   result: OutboxRelayResult,
-): Promise<boolean> {
+  retryOptions: RetryOptions,
+): Promise<OutboxRelayFailureResult | null> {
   try {
-    await repository.recordFailure({
+    const retryDelayMs = failure.retryable
+      ? retryDelayMsForAttempt(
+          row.attempts,
+          retryOptions.retryBaseDelayMs,
+          retryOptions.retryMaxDelayMs,
+          retryOptions.random,
+        )
+      : undefined;
+    return await repository.recordFailure({
       id: row.id,
       claimToken: row.claimToken,
       failure: {
@@ -159,13 +240,45 @@ async function recordFailureSafely(
         message: failure.message,
         retryable: failure.retryable,
       },
+      maxAttempts: retryOptions.maxAttempts,
+      ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
     });
-    return true;
   } catch (error) {
     result.failed += 1;
     if (isStaleClaimError(error)) result.staleClaims += 1;
-    return false;
+    return null;
   }
+}
+
+type RetryOptions = {
+  maxAttempts: number;
+  retryBaseDelayMs: number;
+  retryMaxDelayMs: number;
+  random: () => number;
+};
+
+function countFailureOutcome(
+  result: OutboxRelayResult,
+  failure: OutboxRelayFailureResult | null,
+): void {
+  if (failure?.outcome === "DEAD_LETTER") result.deadLettered += 1;
+  else if (failure?.outcome === "RETRY_SCHEDULED") result.retryableFailures += 1;
+}
+
+function retryDelayMsForAttempt(
+  attempts: number,
+  baseDelayMs: number,
+  maximumDelayMs: number,
+  random: () => number,
+): number {
+  const jitter = random();
+  if (!Number.isFinite(jitter) || jitter < 0 || jitter > 1) {
+    throw new Error("retry jitter must be between 0 and 1");
+  }
+  const attemptExponent = Math.min(Math.max(0, attempts - 1), 31);
+  const exponentialDelay = Math.min(maximumDelayMs, baseDelayMs * 2 ** attemptExponent);
+  const jitterDelay = Math.floor(exponentialDelay * RETRY_JITTER_RATIO * jitter);
+  return Math.min(maximumDelayMs, exponentialDelay + jitterDelay);
 }
 
 type ClassifiedFailure = {
@@ -183,43 +296,11 @@ function classifyFailure(error: unknown): ClassifiedFailure {
     };
   }
 
-  if (isRetryableTransportError(error)) {
-    return {
-      code: "KAFKA_TRANSPORT_RETRYABLE",
-      message: "Kafka transport failure; retry scheduled",
-      retryable: true,
-    };
-  }
-
   return {
-    code: "OUTBOX_RELAY_FAILED",
-    message: "Outbox relay failed with an unclassified error",
-    retryable: false,
+    code: "KAFKA_TRANSPORT_RETRYABLE",
+    message: "Kafka transport failure; retry scheduled",
+    retryable: true,
   };
-}
-
-function isRetryableTransportError(error: unknown): boolean {
-  if (!isRecord(error)) return false;
-  if (error.retriable === true) return true;
-
-  if (
-    error.code === "ECONNRESET" ||
-    error.code === "ECONNREFUSED" ||
-    error.code === "ETIMEDOUT" ||
-    error.code === "EPIPE" ||
-    error.code === "ENETUNREACH" ||
-    error.code === "EAI_AGAIN"
-  ) {
-    return true;
-  }
-
-  return (
-    error.name === "KafkaJSConnectionError" ||
-    error.name === "KafkaJSConnectionClosedError" ||
-    error.name === "KafkaJSRequestTimeoutError" ||
-    error.name === "KafkaJSNoBrokerAvailableError" ||
-    error.name === "KafkaJSNumberOfRetriesExceeded"
-  );
 }
 
 function isStaleClaimError(error: unknown): boolean {
@@ -246,6 +327,13 @@ function boundedBatchSize(value: number | undefined): number {
     throw new Error("Invalid outbox relay batch size");
   }
   return Math.min(value, MAX_OUTBOX_BATCH_SIZE);
+}
+
+function boundedPositiveInteger(value: number, label: string, maximum: number): number {
+  if (!Number.isInteger(value) || value < 1 || value > maximum) {
+    throw new Error(`Invalid ${label}`);
+  }
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
