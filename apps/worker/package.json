@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@previewforge/contracts": "workspace:*",
+    "@previewforge/database": "workspace:*",
     "kafkajs": "2.2.4"
   },
   "devDependencies": {

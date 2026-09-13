@@ -40,6 +40,36 @@ export {
   DeploymentTransitionError,
   transitionDeployment,
 } from "./deployment-repository.js";
+export type {
+  DeploymentClaimInput,
+  DeploymentClaimResult,
+  KafkaDeliveryIdentity,
+  KafkaDeliveryNotClaimableCode,
+  KafkaDeliveryOutcomeInput,
+  LeaseInput,
+} from "./deployment-claim-repository.js";
+export {
+  DeploymentClaimConflictError,
+  DeploymentClaimRepository,
+  DeploymentClaimValidationError,
+  KafkaDeliveryIdentityConflictError,
+  KafkaDeliveryNotClaimableError,
+  LeaseFenceError,
+} from "./deployment-claim-repository.js";
+export type {
+  MarkPublishedResult,
+  OutboxClaimOptions,
+  OutboxFailure,
+  OutboxFailureResult,
+  OutboxRelayRecord,
+  RecordFailureOptions,
+} from "./outbox-relay-repository.js";
+export {
+  OutboxClaimLostError,
+  OutboxEventNotFoundError,
+  OutboxRelayRepository,
+  OutboxRelayValidationError,
+} from "./outbox-relay-repository.js";
 export type { PrismaClient } from "./prisma-client.js";
 export { createPrismaClient } from "./prisma-client.js";
 export type { ProjectImportInput, ProjectImportRecord } from "./project-repository.js";

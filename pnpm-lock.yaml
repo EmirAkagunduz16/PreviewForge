@@ -157,6 +157,9 @@ importers:
       '@previewforge/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@previewforge/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       kafkajs:
         specifier: 2.2.4
         version: 2.2.4
