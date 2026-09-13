@@ -1,4 +1,23 @@
 export type {
+  AuthUserInput,
+  AuthUserRecord,
+  ConsumedOAuthState,
+  GitHubCredentialInput,
+  GitHubCredentialRecord,
+  InstallationClaimInput,
+  InstallationRecord,
+  OAuthStateFlow,
+  OAuthStateInput,
+  SessionInput,
+  SessionRecord,
+} from "./auth-installation-repository.js";
+export {
+  AuthInstallationRepository,
+  hashOpaqueValue,
+  InstallationIdentityConflictError,
+  InstallationOwnershipConflictError,
+} from "./auth-installation-repository.js";
+export type {
   DeploymentIntentResult,
   DeploymentRequestedPayload,
 } from "./deployment-intent.js";
@@ -23,3 +42,19 @@ export {
 } from "./deployment-repository.js";
 export type { PrismaClient } from "./prisma-client.js";
 export { createPrismaClient } from "./prisma-client.js";
+export type { ProjectImportInput, ProjectImportRecord } from "./project-repository.js";
+export { ProjectIdentityConflictError, ProjectRepository } from "./project-repository.js";
+export type {
+  WebhookFaultStage,
+  WebhookProcessResult,
+  WebhookRepositoryInput,
+  WebhookRepositoryOptions,
+} from "./webhook-repository.js";
+export {
+  processWebhook,
+  WebhookDeliveryConflictError,
+  WebhookPayloadValidationError,
+  WebhookProjectNotFoundError,
+  WebhookRepository,
+  WebhookRepositoryIdentityConflictError,
+} from "./webhook-repository.js";

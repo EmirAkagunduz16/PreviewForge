@@ -1,8 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  pullRequestEventSchema,
-  type PullRequestEvent,
-} from "@previewforge/contracts";
+import { type PullRequestEvent, pullRequestEventSchema } from "@previewforge/contracts";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 const MAX_TRANSACTION_RETRIES = 4;
@@ -264,7 +261,11 @@ async function processOpen(
           lastWebhookAt: receivedAt,
           closedAt: null,
         },
-        select: { id: true, number: true, environment: { select: { id: true, desiredCommitSha: true } } },
+        select: {
+          id: true,
+          number: true,
+          environment: { select: { id: true, desiredCommitSha: true } },
+        },
       })
     : await tx.pullRequest.create({
         data: {
@@ -277,7 +278,11 @@ async function processOpen(
           lastWebhookEvent: input.event.action,
           lastWebhookAt: receivedAt,
         },
-        select: { id: true, number: true, environment: { select: { id: true, desiredCommitSha: true } } },
+        select: {
+          id: true,
+          number: true,
+          environment: { select: { id: true, desiredCommitSha: true } },
+        },
       });
 
   let environment = pullRequest.environment;
@@ -311,7 +316,8 @@ async function processOpen(
   let deploymentId: string | undefined;
   if (environment.desiredCommitSha === input.event.commitSha) {
     const shouldDeploy =
-      existingPullRequest === null || existingPullRequest.environment?.desiredCommitSha !== input.event.commitSha;
+      existingPullRequest === null ||
+      existingPullRequest.environment?.desiredCommitSha !== input.event.commitSha;
     if (shouldDeploy) {
       deploymentId = randomUUID();
       const eventId = randomUUID();

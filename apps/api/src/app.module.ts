@@ -1,8 +1,140 @@
+import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
+import {
+  AuthInstallationRepository,
+  createPrismaClient,
+  ProjectRepository,
+  WebhookRepository,
+} from "@previewforge/database";
+import { AuthController } from "./auth/auth.controller.js";
+import { AuthService } from "./auth/auth.service.js";
+import type { ApiConfig } from "./config.js";
+import { DatabaseModule } from "./database/database.module.js";
+import { GitHubClient } from "./github/github-client.js";
 import { HealthController } from "./health.controller.js";
+import { InstallationsController } from "./installations/installations.controller.js";
 import { NotFoundController } from "./not-found.controller.js";
+import {
+  PROJECT_AUTH,
+  PROJECT_CREDENTIAL_CIPHER,
+  PROJECT_GITHUB,
+  PROJECT_INSTALLATION_REPOSITORY,
+  PROJECT_REPOSITORY,
+  ProjectService,
+  ProjectsController,
+} from "./projects/index.js";
+import { CredentialCipher } from "./security/credential-cipher.js";
+import {
+  GITHUB_WEBHOOK_REPOSITORY,
+  GITHUB_WEBHOOK_SECRET,
+  GithubWebhookController,
+  GithubWebhookService,
+} from "./webhooks/index.js";
 
-@Module({
-  controllers: [HealthController, NotFoundController],
-})
-export class AppModule {}
+@Module({})
+// biome-ignore lint/complexity/noStaticOnlyClass: Nest modules expose a static dynamic-module factory.
+export class AppModule {
+  static register(config: ApiConfig): DynamicModule {
+    const runtime = m2Runtime(config);
+    if (!runtime) {
+      return {
+        module: AppModule,
+        controllers: [HealthController, NotFoundController],
+      };
+    }
+
+    const prisma = createPrismaClient(runtime.databaseUrl);
+    const github = new GitHubClient({
+      appId: runtime.github.appId,
+      clientId: runtime.github.clientId,
+      clientSecret: runtime.github.clientSecret,
+      privateKey: runtime.github.privateKey,
+      apiBaseUrl: runtime.github.apiBaseUrl,
+      oauthBaseUrl: runtime.github.oauthBaseUrl,
+    });
+    const cipher = new CredentialCipher(runtime.encryptionKey);
+    const authRepository = new AuthInstallationRepository(prisma);
+    const projectRepository = new ProjectRepository(prisma);
+    const webhookRepository = new WebhookRepository(prisma);
+
+    return {
+      module: AppModule,
+      imports: [DatabaseModule.forRoot({ client: prisma })],
+      controllers: [
+        HealthController,
+        AuthController,
+        InstallationsController,
+        ProjectsController,
+        GithubWebhookController,
+        NotFoundController,
+      ],
+      providers: [
+        {
+          provide: AuthService,
+          useFactory: () =>
+            new AuthService(authRepository, github, cipher, {
+              clientId: runtime.github.clientId,
+              appSlug: runtime.github.appSlug,
+              oauthBaseUrl: runtime.github.oauthBaseUrl,
+              publicBaseUrl: runtime.publicBaseUrl,
+              sessionTtlSeconds: runtime.sessionTtlSeconds,
+              oauthStateTtlSeconds: runtime.oauthStateTtlSeconds,
+            }),
+        },
+        { provide: PROJECT_AUTH, useExisting: AuthService },
+        { provide: PROJECT_INSTALLATION_REPOSITORY, useValue: authRepository },
+        { provide: PROJECT_GITHUB, useValue: github },
+        { provide: PROJECT_REPOSITORY, useValue: projectRepository },
+        { provide: PROJECT_CREDENTIAL_CIPHER, useValue: cipher },
+        {
+          provide: ProjectService,
+          inject: [
+            PROJECT_AUTH,
+            PROJECT_INSTALLATION_REPOSITORY,
+            PROJECT_GITHUB,
+            PROJECT_REPOSITORY,
+            PROJECT_CREDENTIAL_CIPHER,
+          ],
+          useFactory: (...dependencies: ConstructorParameters<typeof ProjectService>) =>
+            new ProjectService(...dependencies),
+        },
+        { provide: GITHUB_WEBHOOK_REPOSITORY, useValue: webhookRepository },
+        { provide: GITHUB_WEBHOOK_SECRET, useValue: runtime.github.webhookSecret },
+        {
+          provide: GithubWebhookService,
+          inject: [GITHUB_WEBHOOK_REPOSITORY, GITHUB_WEBHOOK_SECRET],
+          useFactory: (...dependencies: ConstructorParameters<typeof GithubWebhookService>) =>
+            new GithubWebhookService(...dependencies),
+        },
+      ],
+    };
+  }
+}
+
+type M2Runtime = Required<
+  Pick<
+    ApiConfig,
+    | "databaseUrl"
+    | "github"
+    | "encryptionKey"
+    | "publicBaseUrl"
+    | "sessionTtlSeconds"
+    | "oauthStateTtlSeconds"
+  >
+>;
+
+function m2Runtime(config: ApiConfig): M2Runtime | undefined {
+  const values = [
+    config.databaseUrl,
+    config.github,
+    config.encryptionKey,
+    config.publicBaseUrl,
+    config.sessionTtlSeconds,
+    config.oauthStateTtlSeconds,
+  ];
+  if (values.every((value) => value === undefined)) return undefined;
+  if (values.some((value) => value === undefined)) {
+    throw new Error("Incomplete M2 runtime configuration");
+  }
+  return config as ApiConfig & M2Runtime;
+}

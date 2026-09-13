@@ -12,7 +12,7 @@ export async function createApplication(config: ApiConfig) {
   // Nest's default parser consumes the stream before webhook handlers can
   // authenticate it. Install the parser ourselves and retain the exact bytes
   // received on the wire for HMAC verification.
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create(AppModule.register(config), {
     bufferLogs: true,
     bodyParser: false,
     logger,

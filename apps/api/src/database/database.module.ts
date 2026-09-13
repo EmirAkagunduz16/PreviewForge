@@ -6,6 +6,7 @@ export const DATABASE_CLIENT = Symbol("PREVIEWFORGE_DATABASE_CLIENT");
 
 export type DatabaseModuleOptions = {
   connectionString?: string;
+  client?: PrismaClient;
 };
 
 @Injectable()
@@ -18,9 +19,13 @@ class DatabaseLifecycle implements OnModuleDestroy {
 }
 
 @Module({})
+// biome-ignore lint/complexity/noStaticOnlyClass: Nest modules expose a static dynamic-module factory.
 export class DatabaseModule {
   static forRoot(options: DatabaseModuleOptions): DynamicModule {
-    if (!options.connectionString) {
+    if (options.connectionString && options.client) {
+      throw new Error("Configure either a database connection string or a client, not both");
+    }
+    if (!options.connectionString && !options.client) {
       return { module: DatabaseModule };
     }
 
@@ -29,7 +34,8 @@ export class DatabaseModule {
       providers: [
         {
           provide: DATABASE_CLIENT,
-          useFactory: () => createPrismaClient(options.connectionString as string),
+          useFactory: () =>
+            options.client ?? createPrismaClient(options.connectionString as string),
         },
         {
           provide: DatabaseLifecycle,

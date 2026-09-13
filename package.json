@@ -18,7 +18,7 @@
     "infra:logs": "node scripts/local-infra.mjs logs -f",
     "infra:up": "node scripts/local-infra.mjs up -d --wait",
     "test": "turbo run test",
-    "test:integration": "pnpm --filter @previewforge/database test:integration",
+    "test:integration": "pnpm --filter @previewforge/database test:integration && pnpm --filter @previewforge/api test:integration",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {

@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --exclude 'src/**/*.integration.test.ts'",
+    "test:integration": "node -e \"if (!process.env.DATABASE_URL) { console.error('DATABASE_URL is required for integration tests'); process.exit(1); }\" && vitest run src/*.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

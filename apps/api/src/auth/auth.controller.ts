@@ -2,7 +2,8 @@ import { Controller, Get, Inject, Post, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import type { Request, Response } from "express";
 import { parseCookie } from "../security/cookies.js";
-import { type AuthService, OAUTH_BINDING_COOKIE, SESSION_COOKIE } from "./auth.service.js";
+// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
+import { AuthService, OAUTH_BINDING_COOKIE, SESSION_COOKIE } from "./auth.service.js";
 
 type RequestWithResponse = Request & { res: Response };
 

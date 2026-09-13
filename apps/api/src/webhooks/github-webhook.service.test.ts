@@ -54,7 +54,11 @@ describe("GithubWebhookService", () => {
     await expect(
       service.handle(
         { headers: {} },
-        { signature: "sha256=" + "0".repeat(64), event: "pull_request", delivery: "delivery-1" },
+        {
+          signature: `sha256=${"0".repeat(64)}`,
+          event: "pull_request",
+          delivery: "delivery-1",
+        },
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(repository.process).not.toHaveBeenCalled();

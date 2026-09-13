@@ -1,8 +1,7 @@
-import { BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { normalizePullRequestWebhookPayload } from "@previewforge/contracts";
 import { verifyGitHubSignature } from "../security/github-signature.js";
-import { GITHUB_WEBHOOK_REPOSITORY, GITHUB_WEBHOOK_SECRET } from "./webhook.tokens.js";
 import type {
   RawWebhookRequest,
   WebhookHeaders,
@@ -16,15 +15,11 @@ const SIGNATURE_PATTERN = /^sha256=[0-9a-f]{64}$/i;
 @Injectable()
 export class GithubWebhookService {
   constructor(
-    @Inject(GITHUB_WEBHOOK_REPOSITORY)
     private readonly repository: WebhookRepositoryPort,
-    @Inject(GITHUB_WEBHOOK_SECRET) private readonly secret: string,
+    private readonly secret: string,
   ) {}
 
-  async handle(
-    request: RawWebhookRequest,
-    headers: WebhookHeaders,
-  ): Promise<WebhookProcessResult> {
+  async handle(request: RawWebhookRequest, headers: WebhookHeaders): Promise<WebhookProcessResult> {
     const rawBody = request.rawBody;
     if (!rawBody || !Buffer.isBuffer(rawBody)) {
       throw new UnauthorizedException("raw webhook body is required");

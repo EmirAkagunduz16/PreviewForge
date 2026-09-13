@@ -1,16 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   deploymentRequestedSchema,
   environmentDeletionRequestedSchema,
 } from "@previewforge/contracts";
+import { Prisma } from "@prisma/client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createPrismaClient } from "../src/prisma-client.js";
 import {
+  type PrismaClient,
   WebhookDeliveryConflictError,
   WebhookRepository,
-  type PrismaClient,
 } from "../src/webhook-repository.js";
-import { createPrismaClient } from "../src/prisma-client.js";
-import { Prisma } from "@prisma/client";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for PostgreSQL integration tests");
@@ -39,6 +39,8 @@ describe("WebhookRepository (PostgreSQL)", () => {
 
     expect(result).toMatchObject({ duplicate: false, stale: false, action: "opened" });
     expect(result.deploymentId).toBeDefined();
+    const deploymentId = result.deploymentId;
+    if (!deploymentId) throw new Error("opened webhook did not create a deployment");
     expect(await prisma.webhookDelivery.count({ where: { deliveryId } })).toBe(1);
     const pullRequest = await prisma.pullRequest.findUnique({
       where: { projectId_number: { projectId: fixture.projectId, number: fixture.number } },
@@ -49,11 +51,11 @@ describe("WebhookRepository (PostgreSQL)", () => {
     expect(pullRequest?.environment?.desiredCommitSha).toBe(fixture.commitSha);
     expect(
       await prisma.outboxEvent.count({
-        where: { eventType: "deployment.requested.v1", aggregateId: result.deploymentId },
+        where: { eventType: "deployment.requested.v1", aggregateId: deploymentId },
       }),
     ).toBe(1);
     const deploymentOutbox = await prisma.outboxEvent.findFirst({
-      where: { aggregateId: result.deploymentId! },
+      where: { aggregateId: deploymentId },
     });
     expect(deploymentOutbox?.eventType).toBe("deployment.requested.v1");
     const deploymentPayload = deploymentRequestedSchema.parse(deploymentOutbox?.payload);
@@ -73,9 +75,9 @@ describe("WebhookRepository (PostgreSQL)", () => {
 
     expect(results.filter((result) => !result.duplicate)).toHaveLength(1);
     expect(results.filter((result) => result.duplicate)).toHaveLength(11);
-    expect(
-      await prisma.webhookDelivery.count({ where: { deliveryId: command.deliveryId } }),
-    ).toBe(1);
+    expect(await prisma.webhookDelivery.count({ where: { deliveryId: command.deliveryId } })).toBe(
+      1,
+    );
     expect(await prisma.pullRequest.count({ where: { projectId: fixture.projectId } })).toBe(1);
     expect(
       await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
@@ -95,18 +97,25 @@ describe("WebhookRepository (PostgreSQL)", () => {
       WebhookDeliveryConflictError,
     );
     expect(await prisma.webhookDelivery.count({ where: { deliveryId } })).toBe(1);
-    expect(await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } })).toBe(1);
+    expect(
+      await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
+    ).toBe(1);
   });
 
   it("does not let an older open event reopen a PR after a newer close", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
     const repository = new WebhookRepository(prisma);
-    await repository.process(input(event(fixture, "opened", "2026-09-13T10:00:00.000Z"), delivery(fixture, "order-open")));
+    await repository.process(
+      input(event(fixture, "opened", "2026-09-13T10:00:00.000Z"), delivery(fixture, "order-open")),
+    );
     const closed = event(fixture, "closed", "2026-09-13T10:20:00.000Z");
     const closedResult = await repository.process(input(closed, delivery(fixture, "order-close")));
     const stale = await repository.process(
-      input(event(fixture, "reopened", "2026-09-13T10:10:00.000Z"), delivery(fixture, "order-stale")),
+      input(
+        event(fixture, "reopened", "2026-09-13T10:10:00.000Z"),
+        delivery(fixture, "order-stale"),
+      ),
     );
 
     expect(closedResult.deletionRequestId).toBeDefined();
@@ -121,26 +130,33 @@ describe("WebhookRepository (PostgreSQL)", () => {
       select: { id: true },
     });
     expect(environment).not.toBeNull();
+    if (!environment) throw new Error("closed webhook did not retain its environment");
     expect(
-      await prisma.environmentDeletionRequest.count({ where: { environmentId: environment!.id } }),
+      await prisma.environmentDeletionRequest.count({ where: { environmentId: environment.id } }),
     ).toBe(1);
     expect(
-      await prisma.outboxEvent.count({ where: { aggregateType: "environment", aggregateId: environment!.id } }),
+      await prisma.outboxEvent.count({
+        where: { aggregateType: "environment", aggregateId: environment.id },
+      }),
     ).toBe(1);
     const deletionOutbox = await prisma.outboxEvent.findFirst({
-      where: { eventType: "environment.deletion-requested.v1", aggregateId: environment!.id },
+      where: { eventType: "environment.deletion-requested.v1", aggregateId: environment.id },
     });
     const deletionPayload = environmentDeletionRequestedSchema.parse(deletionOutbox?.payload);
-    expect(deletionPayload.environmentId).toBe(environment!.id);
+    expect(deletionPayload.environmentId).toBe(environment.id);
     expect(deletionOutbox?.aggregateId).toBe(deletionPayload.environmentId);
-    expect(await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } })).toBe(1);
+    expect(
+      await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
+    ).toBe(1);
   });
 
   it("tracks a repository rename by immutable numeric ID without creating a second project", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
     const repository = new WebhookRepository(prisma);
-    await repository.process(input(event(fixture, "opened", "2026-09-13T12:00:00.000Z"), delivery(fixture, "rename-open")));
+    await repository.process(
+      input(event(fixture, "opened", "2026-09-13T12:00:00.000Z"), delivery(fixture, "rename-open")),
+    );
 
     const renamedFullName = `integration-renamed/${fixture.repositoryFullName.split("/")[1]}`;
     const renamedEvent = {
@@ -154,7 +170,10 @@ describe("WebhookRepository (PostgreSQL)", () => {
       await prisma.project.count({ where: { githubRepositoryId: BigInt(fixture.repositoryId) } }),
     ).toBe(1);
     expect(
-      await prisma.project.findUnique({ where: { id: fixture.projectId }, select: { repositoryFullName: true } }),
+      await prisma.project.findUnique({
+        where: { id: fixture.projectId },
+        select: { repositoryFullName: true },
+      }),
     ).toEqual({ repositoryFullName: renamedFullName });
     expect(await prisma.pullRequest.count({ where: { projectId: fixture.projectId } })).toBe(1);
   });
@@ -170,12 +189,20 @@ describe("WebhookRepository (PostgreSQL)", () => {
 
     const beforeOutbox = await countOutboxForProject(prisma, fixture.projectId);
     await expect(
-      repository.process(input(event(fixture, "opened", "2026-09-13T11:00:00.000Z"), delivery(fixture, "rollback"))),
+      repository.process(
+        input(event(fixture, "opened", "2026-09-13T11:00:00.000Z"), delivery(fixture, "rollback")),
+      ),
     ).rejects.toThrow("injected webhook transaction fault");
-    expect(await prisma.webhookDelivery.count({ where: { deliveryId: delivery(fixture, "rollback") } })).toBe(0);
+    expect(
+      await prisma.webhookDelivery.count({ where: { deliveryId: delivery(fixture, "rollback") } }),
+    ).toBe(0);
     expect(await prisma.pullRequest.count({ where: { projectId: fixture.projectId } })).toBe(0);
-    expect(await prisma.previewEnvironment.count({ where: { projectId: fixture.projectId } })).toBe(0);
-    expect(await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } })).toBe(0);
+    expect(await prisma.previewEnvironment.count({ where: { projectId: fixture.projectId } })).toBe(
+      0,
+    );
+    expect(
+      await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
+    ).toBe(0);
     expect(await countOutboxForProject(prisma, fixture.projectId)).toBe(beforeOutbox);
   });
 
@@ -183,7 +210,9 @@ describe("WebhookRepository (PostgreSQL)", () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
     const repository = new WebhookRepository(prisma);
-    await repository.process(input(event(fixture, "opened", "2026-09-13T13:00:00.000Z"), delivery(fixture, "close-setup")));
+    await repository.process(
+      input(event(fixture, "opened", "2026-09-13T13:00:00.000Z"), delivery(fixture, "close-setup")),
+    );
     const beforeOutbox = await countOutboxForProject(prisma, fixture.projectId);
     const faulted = new WebhookRepository(prisma, {
       faultInjector: () => {
@@ -192,15 +221,29 @@ describe("WebhookRepository (PostgreSQL)", () => {
     });
 
     await expect(
-      faulted.process(input(event(fixture, "closed", "2026-09-13T13:10:00.000Z"), delivery(fixture, "close-rollback"))),
+      faulted.process(
+        input(
+          event(fixture, "closed", "2026-09-13T13:10:00.000Z"),
+          delivery(fixture, "close-rollback"),
+        ),
+      ),
     ).rejects.toThrow("injected webhook close fault");
     const pullRequest = await prisma.pullRequest.findUnique({
       where: { projectId_number: { projectId: fixture.projectId, number: fixture.number } },
       include: { environment: true },
     });
     expect(pullRequest?.state).toBe("OPEN");
-    expect(await prisma.webhookDelivery.count({ where: { deliveryId: delivery(fixture, "close-rollback") } })).toBe(0);
-    expect(await prisma.environmentDeletionRequest.count({ where: { environmentId: pullRequest!.environment!.id } })).toBe(0);
+    if (!pullRequest?.environment) throw new Error("rollback fixture lost its environment");
+    expect(
+      await prisma.webhookDelivery.count({
+        where: { deliveryId: delivery(fixture, "close-rollback") },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.environmentDeletionRequest.count({
+        where: { environmentId: pullRequest.environment.id },
+      }),
+    ).toBe(0);
     expect(await countOutboxForProject(prisma, fixture.projectId)).toBe(beforeOutbox);
   });
 });
@@ -265,7 +308,11 @@ function delivery(fixture: Fixture, suffix: string): string {
   return `${fixture.deliveryPrefix}-${suffix}`;
 }
 
-function event(fixture: Fixture, action: "opened" | "reopened" | "synchronize" | "closed", sourceTimestamp: string) {
+function event(
+  fixture: Fixture,
+  action: "opened" | "reopened" | "synchronize" | "closed",
+  sourceTimestamp: string,
+) {
   return {
     action,
     installationId: fixture.githubInstallationId,
@@ -278,9 +325,7 @@ function event(fixture: Fixture, action: "opened" | "reopened" | "synchronize" |
 }
 
 function input(eventValue: ReturnType<typeof event>, deliveryId: string) {
-  const payloadSha256 = createHash("sha256")
-    .update(JSON.stringify(eventValue))
-    .digest("hex");
+  const payloadSha256 = createHash("sha256").update(JSON.stringify(eventValue)).digest("hex");
   return {
     deliveryId,
     eventName: "pull_request" as const,
