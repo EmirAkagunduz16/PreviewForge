@@ -23,7 +23,7 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Handle `opened`, `reopened`, `synchronize`, and `closed`.
 - Acceptance: fixture webhooks create exactly one desired deployment and close creates a deletion request.
 
-## M3 — Kafka dispatch and worker claims (week 3)
+## M3 — Kafka dispatch and worker claims (active)
 
 - Implement outbox relay and versioned Kafka producers/consumers.
 - Add deployment leases, event receipts, retry classification, and dead-letter visibility.
