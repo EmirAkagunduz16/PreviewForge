@@ -28,6 +28,7 @@ export type AuthSessionResult = {
 };
 
 const PKCE_VERIFIER_BYTES = 32;
+const API_PREFIX = "/api";
 
 @Injectable()
 export class AuthService {
@@ -248,7 +249,7 @@ export class AuthService {
   }
 
   private callbackUrl(path: string): string {
-    return new URL(path, `${this.config.publicBaseUrl}/`).toString();
+    return new URL(`${API_PREFIX}${path}`, `${this.config.publicBaseUrl}/`).toString();
   }
 }
 

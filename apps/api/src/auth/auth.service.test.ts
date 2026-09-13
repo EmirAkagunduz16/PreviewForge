@@ -24,6 +24,7 @@ describe("AuthService", () => {
     const github: GitHubAuthAdapter = {
       exchangeUserCode: vi.fn(async (input) => {
         expect(input.codeVerifier).toBeTruthy();
+        expect(input.redirectUri).toBe("https://previewforge.example/api/auth/github/callback");
         return {
           accessToken: "access-token-secret",
           refreshToken: "refresh-token-secret",
@@ -48,6 +49,9 @@ describe("AuthService", () => {
     const url = new URL(start.authorizationUrl);
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "https://previewforge.example/api/auth/github/callback",
+    );
 
     const result = await service.finishSignIn(
       { code: "one-time-code", state: repository.lastState() },
@@ -93,6 +97,10 @@ describe("AuthService", () => {
       config,
     );
     const session = await service.startInstallation("session-token");
+    const setupUrl = new URL(session.authorizationUrl);
+    expect(setupUrl.searchParams.get("redirect_uri")).toBe(
+      "https://previewforge.example/api/installations/github/callback",
+    );
     await expect(
       service.finishInstallation(
         { installation_id: "42", state: repository.lastState() },
