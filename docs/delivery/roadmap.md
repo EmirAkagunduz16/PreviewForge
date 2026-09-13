@@ -15,7 +15,7 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Implement compare-and-set deployment transitions and transactional outbox writes.
 - Acceptance: integration tests prove duplicate intent is harmless and terminal states cannot be rewound.
 
-## M2 — GitHub App vertical slice (week 2)
+## M2 — GitHub App vertical slice (active)
 
 - Add GitHub sign-in and installation callback.
 - List accessible repositories and import a Dockerfile project.
