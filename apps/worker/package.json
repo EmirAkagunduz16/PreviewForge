@@ -7,11 +7,13 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
-    "test": "vitest run --passWithNoTests",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run src --exclude 'src/**/*.integration.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@previewforge/contracts": "workspace:*"
+    "@previewforge/contracts": "workspace:*",
+    "kafkajs": "2.2.4"
   },
   "devDependencies": {
     "@types/node": "catalog:",

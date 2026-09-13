@@ -17,7 +17,7 @@ The worker may atomically claim a desired queued deployment and move it to `CLON
 - Use one worker deployment unit with independently runnable relay and consumer roles; do not add a service boundary.
 - Use Kafka topics `previewforge.deployment-requests.v1`, `previewforge.deployment-events.v1`, and `previewforge.environment-commands.v1`. Partition keys are the event's `environmentId`.
 - Validate an allow-listed versioned event union before publication and again at consumption. The outbox row ID, payload `eventId`, event type, topic mapping, header identity, key, and payload environment identity must agree.
-- Use Kafka acknowledgement-all and producer idempotence where supported, while retaining event-ID deduplication because a crash after broker acknowledgement and before the PostgreSQL mark can republish.
+- Use Kafka acknowledgement-all, one in-flight request, an explicit stable partitioner, and bounded transport retry. KafkaJS warns that bounding its retries invalidates its producer-idempotence guarantee, so M3 does not enable or claim Kafka producer exactly-once behavior; PostgreSQL event receipts remain the idempotency authority.
 - Persist outbox claim ownership, lease expiry, attempts, retry schedule, redacted failure, and dead-letter status in PostgreSQL. `publishedAt` is written only after broker acknowledgement and only by the current claim token.
 - Persist message-delivery attempts/dead letters without raw payloads. Store topic/partition/offset, safe identity when parseable, payload digest, stable error code, redacted message, attempts, retry time, and terminal status.
 - Keep semantic deduplication in `ConsumerReceipt(consumerName,eventId)`. Receipt, lease/state mutation, and transition outbox event commit atomically.
