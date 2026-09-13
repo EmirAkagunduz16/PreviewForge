@@ -39,7 +39,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
 
     const result = await repository.createDeploymentIntent(fixture.payload);
-    fixture.eventIds.push(fixture.payload.eventId);
 
     expect(result.created).toBe(true);
     expect(result.deployment.id).toBe(fixture.payload.deploymentId);
@@ -61,7 +60,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
 
     const first = await repository.createDeploymentIntent(fixture.payload);
-    fixture.eventIds.push(fixture.payload.eventId);
     const duplicate = await repository.createDeploymentIntent(fixture.payload);
 
     expect(first.created).toBe(true);
@@ -81,7 +79,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
 
     const first = await repository.createDeploymentIntent(fixture.payload);
-    fixture.eventIds.push(fixture.payload.eventId);
     await prisma.previewEnvironment.update({
       where: { id: fixture.environmentId },
       data: { desiredCommitSha: "b".repeat(40) },
@@ -102,7 +99,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
 
     await repository.createDeploymentIntent(fixture.payload);
-    fixture.eventIds.push(fixture.payload.eventId);
     const conflictingPayload = { ...fixture.payload, eventId: randomUUID() };
 
     await expect(repository.createDeploymentIntent(conflictingPayload)).rejects.toBeInstanceOf(
@@ -122,7 +118,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
 
     await repository.createDeploymentIntent(fixture.payload);
-    fixture.eventIds.push(fixture.payload.eventId);
     const conflictingPayload = { ...fixture.payload, deploymentId: randomUUID() };
 
     await expect(repository.createDeploymentIntent(conflictingPayload)).rejects.toBeInstanceOf(
@@ -169,7 +164,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     const results = await Promise.all(
       Array.from({ length: 12 }, () => repository.createDeploymentIntent(fixture.payload)),
     );
-    fixture.eventIds.push(fixture.payload.eventId);
 
     expect(results.filter((result) => result.created)).toHaveLength(1);
     expect(results.every((result) => result.deployment.id === fixture.payload.deploymentId)).toBe(
@@ -189,6 +183,7 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
     fixtures.push(fixture);
     const secondDeploymentId = randomUUID();
     const secondEventId = randomUUID();
+    fixture.eventIds.push(secondEventId);
     const secondPayload = {
       ...fixture.payload,
       eventId: secondEventId,
@@ -200,7 +195,6 @@ describe("DeploymentIntentRepository (PostgreSQL)", () => {
       repository.createDeploymentIntent(fixture.payload),
       repository.createDeploymentIntent(secondPayload),
     ]);
-    fixture.eventIds.push(fixture.payload.eventId, secondEventId);
 
     expect(results.every((result) => result.created)).toBe(true);
     expect(new Set(results.map((result) => result.deployment.attempt))).toEqual(new Set([1, 2]));
@@ -296,7 +290,7 @@ async function createFixture(prisma: PrismaClient): Promise<Fixture> {
   return {
     userId,
     environmentId,
-    eventIds: [],
+    eventIds: [eventId],
     payload: {
       eventId,
       eventType: "deployment.requested.v1",

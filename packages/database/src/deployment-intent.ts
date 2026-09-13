@@ -57,7 +57,22 @@ type DeploymentIntentEnvironment = Prisma.PreviewEnvironmentGetPayload<{
   };
 }>;
 
-const MAX_TRANSACTION_RETRIES = 3;
+// Serializable transactions can all observe the same snapshot when a burst
+// of duplicate deliveries starts together. Give the losing transactions a
+// bounded, jittered retry window so they can observe the committed pair.
+const MAX_TRANSACTION_RETRIES = 8;
+const INITIAL_RETRY_DELAY_MS = 5;
+const MAX_RETRY_DELAY_MS = 100;
+
+function retryDelayMs(retry: number): number {
+  const exponentialDelay = Math.min(MAX_RETRY_DELAY_MS, INITIAL_RETRY_DELAY_MS * 2 ** retry);
+  const jitter = Math.floor(Math.random() * exponentialDelay);
+  return exponentialDelay + jitter;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -65,6 +80,32 @@ function isUniqueConstraintError(error: unknown): boolean {
 
 function isWriteConflictError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+}
+
+function isTransactionWriteConflictError(error: unknown): boolean {
+  if (isWriteConflictError(error)) {
+    return true;
+  }
+
+  return (
+    hasTransactionWriteConflictFields(error) ||
+    (isRecord(error) && hasTransactionWriteConflictFields(error.cause))
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function hasTransactionWriteConflictFields(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.kind === "TransactionWriteConflict" &&
+    (value.originalCode === "40001" || value.originalCode === "40P01")
+  );
 }
 
 function isDeploymentAttemptUniqueConstraint(error: unknown): boolean {
@@ -205,11 +246,13 @@ export class DeploymentIntentRepository {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
       } catch (error) {
-        if (
-          retry < MAX_TRANSACTION_RETRIES &&
-          (isWriteConflictError(error) || isDeploymentAttemptUniqueConstraint(error))
-        ) {
-          continue;
+        const retryableRace =
+          isTransactionWriteConflictError(error) || isDeploymentAttemptUniqueConstraint(error);
+        if (retryableRace) {
+          if (retry < MAX_TRANSACTION_RETRIES) {
+            await wait(retryDelayMs(retry));
+            continue;
+          }
         }
 
         if (isUniqueConstraintError(error)) {
