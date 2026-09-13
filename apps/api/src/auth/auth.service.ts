@@ -94,18 +94,19 @@ export class AuthService {
       const refreshTokenExpiresAt = token.refreshTokenExpiresIn
         ? new Date(Date.now() + token.refreshTokenExpiresIn * 1000)
         : undefined;
+      const credential = {
+        encryptedAccessToken: this.cipher.encrypt(token.accessToken),
+        scopes: parseScopes(token.scope),
+        ...(token.refreshToken
+          ? { encryptedRefreshToken: this.cipher.encrypt(token.refreshToken) }
+          : {}),
+        ...(accessTokenExpiresAt ? { accessTokenExpiresAt } : {}),
+        ...(refreshTokenExpiresAt ? { refreshTokenExpiresAt } : {}),
+        ...(token.tokenType ? { tokenType: token.tokenType } : {}),
+      };
       const user = await this.repository.upsertUserWithCredential(
         { githubUserId: githubUser.id, githubLogin: githubUser.login },
-        {
-          encryptedAccessToken: this.cipher.encrypt(token.accessToken),
-          encryptedRefreshToken: token.refreshToken
-            ? this.cipher.encrypt(token.refreshToken)
-            : undefined,
-          accessTokenExpiresAt,
-          refreshTokenExpiresAt,
-          tokenType: token.tokenType,
-          scopes: parseScopes(token.scope),
-        },
+        credential,
       );
       return this.createSession(user);
     } catch (error) {
@@ -221,12 +222,13 @@ export class AuthService {
       if (!accountLogin || (accountType !== "User" && accountType !== "Organization")) {
         throw new UnauthorizedException("Installation could not be verified");
       }
+      const accountId = userInstallation.accountId ?? appInstallation.accountId;
       return await this.repository.claimInstallation({
         githubInstallationId: parsed.installationId,
-        githubAccountId: userInstallation.accountId ?? appInstallation.accountId,
         accountLogin,
         accountType,
         ownerId: session.userId,
+        ...(accountId ? { githubAccountId: accountId } : {}),
       });
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;

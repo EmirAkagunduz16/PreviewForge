@@ -1,3 +1,10 @@
+import type {
+  AuthUserRecord,
+  ConsumedOAuthState,
+  GitHubCredentialRecord,
+  InstallationRecord,
+  SessionRecord,
+} from "@previewforge/database";
 import { describe, expect, it, vi } from "vitest";
 import { CredentialCipher } from "../security/credential-cipher.js";
 import { AuthService } from "./auth.service.js";
@@ -163,7 +170,7 @@ class MemoryRepository implements AuthRepository {
     }
   >();
   consumed = false;
-  credential?: Awaited<ReturnType<MemoryRepository["getCredential"]>>;
+  credential?: GitHubCredentialRecord;
   sessionToken?: string;
   claims: Array<{ githubInstallationId: string; ownerId: string }> = [];
 
@@ -177,7 +184,7 @@ class MemoryRepository implements AuthRepository {
     this.states.set(input.state, { ...input, consumed: false });
   }
 
-  async consumeOAuthState(state: string, binding: string) {
+  async consumeOAuthState(state: string, binding: string): Promise<ConsumedOAuthState | null> {
     const value = this.states.get(state);
     if (!value || value.consumed || value.binding !== binding || value.expiresAt <= new Date())
       return null;
@@ -196,7 +203,7 @@ class MemoryRepository implements AuthRepository {
   async upsertUserWithCredential(
     user: Parameters<AuthRepository["upsertUserWithCredential"]>[0],
     credential: Parameters<AuthRepository["upsertUserWithCredential"]>[1],
-  ) {
+  ): Promise<AuthUserRecord> {
     this.credential = { userId: "user-id", ...credential };
     return { id: "user-id", ...user };
   }
@@ -205,10 +212,11 @@ class MemoryRepository implements AuthRepository {
     this.sessionToken = input.token;
   }
 
-  async findSession() {
+  async findSession(): Promise<SessionRecord> {
     return {
       sessionId: "session-id",
       userId: "user-id",
+      id: "user-id",
       githubUserId: "1",
       githubLogin: "octo",
       expiresAt: new Date(Date.now() + 60_000),
@@ -217,7 +225,7 @@ class MemoryRepository implements AuthRepository {
 
   async revokeSession(): Promise<void> {}
 
-  async getCredential() {
+  async getCredential(): Promise<GitHubCredentialRecord> {
     return (
       this.credential ?? {
         userId: "user-id",
@@ -227,7 +235,9 @@ class MemoryRepository implements AuthRepository {
     );
   }
 
-  async claimInstallation(input: Parameters<AuthRepository["claimInstallation"]>[0]) {
+  async claimInstallation(
+    input: Parameters<AuthRepository["claimInstallation"]>[0],
+  ): Promise<InstallationRecord> {
     this.claims.push(input);
     return {
       id: "installation-id",
