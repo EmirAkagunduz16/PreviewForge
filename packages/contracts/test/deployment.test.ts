@@ -23,7 +23,7 @@ describe("deployment.requested.v1", () => {
       deploymentId: "019930c0-c522-7474-a3f0-1ee461901c21",
       environmentId: "019930c0-c522-7474-a3f0-1ee461901c22",
       projectId: "019930c0-c522-7474-a3f0-1ee461901c23",
-      installationId: 42,
+      installationId: "42",
       repositoryFullName: "acme/store",
       pullRequestNumber: 7,
       commitSha: "7dc12ab",

@@ -237,7 +237,7 @@ function environmentMatchesPayload(
 ): boolean {
   return (
     environment.project.repositoryFullName === payload.repositoryFullName &&
-    environment.project.installation.githubInstallationId === payload.installationId
+    environment.project.installation.githubInstallationId === BigInt(payload.installationId)
   );
 }
 

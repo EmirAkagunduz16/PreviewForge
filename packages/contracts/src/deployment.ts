@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { githubInstallationIdSchema } from "./github.js";
 
 export const deploymentStatuses = [
   "QUEUED",
@@ -40,7 +41,7 @@ export const deploymentRequestedSchema = z.object({
   deploymentId: z.uuid(),
   environmentId: z.uuid(),
   projectId: z.uuid(),
-  installationId: z.int().positive(),
+  installationId: githubInstallationIdSchema,
   repositoryFullName: z.string().regex(/^[^/]+\/[^/]+$/),
   pullRequestNumber: z.int().positive(),
   commitSha: z.string().regex(/^[0-9a-f]{40}$/i),

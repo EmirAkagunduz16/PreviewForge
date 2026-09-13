@@ -241,7 +241,7 @@ type Fixture = {
     deploymentId: string;
     environmentId: string;
     projectId: string;
-    installationId: number;
+    installationId: string;
     repositoryFullName: string;
     pullRequestNumber: number;
     commitSha: string;
@@ -258,7 +258,7 @@ async function createFixture(prisma: PrismaClient): Promise<Fixture> {
   const eventId = randomUUID();
   const repositoryFullName = `integration/${suffix}`;
   const commitSha = `${suffix.replaceAll("-", "")}${suffix.replaceAll("-", "")}`.slice(0, 40);
-  const githubInstallationId = Math.floor(Math.random() * 2_000_000_000) + 1;
+  const githubInstallationId = BigInt(Math.floor(Math.random() * 2_000_000_000) + 1);
 
   await prisma.user.create({
     data: {
@@ -304,7 +304,7 @@ async function createFixture(prisma: PrismaClient): Promise<Fixture> {
       deploymentId,
       environmentId,
       projectId,
-      installationId: githubInstallationId,
+      installationId: githubInstallationId.toString(),
       repositoryFullName,
       pullRequestNumber: 7,
       commitSha,

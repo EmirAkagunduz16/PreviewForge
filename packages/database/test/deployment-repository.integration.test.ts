@@ -393,7 +393,7 @@ async function createFixture(prisma: PrismaClient): Promise<Fixture> {
   await prisma.installation.create({
     data: {
       id: installationId,
-      githubInstallationId: uniqueInstallationId(),
+      githubInstallationId: BigInt(uniqueInstallationId()),
       accountLogin: `integration-${suffix}`,
       accountType: "User",
       ownerId: userId,
