@@ -33,8 +33,8 @@ The project-to-vault link was changed to start with `../../../vaults/…`; vault
 ## Evidence
 
 - [Project memory](../knowledge/previewforge-memory.md)
-- [VictusOS project index](../../../vaults/second_brain/Projects/PreviewForge.md)
-- [VictusOS session distillation](../../../vaults/second_brain/Reports/PreviewForge/2026-09-12%20Foundation%20to%20M1.md)
+- [VictusOS project index](../../../../Documents/VictusOS/🏰%20300-Projects/PreviewForge.md)
+- [VictusOS session distillation](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-12%20Foundation%20to%20M1.md)
 
 ## Related links
 

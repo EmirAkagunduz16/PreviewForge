@@ -48,4 +48,4 @@ The `.agents/skills/previewforge-delivery` skill enforces the repeated backlog, 
 ## Related links
 
 - [Session report](session-2026-09-12.md)
-- [VictusOS session distillation](../../../vaults/second_brain/Reports/PreviewForge/2026-09-12%20Foundation%20to%20M1.md)
+- [VictusOS session distillation](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-12%20Foundation%20to%20M1.md)

@@ -10,7 +10,7 @@ tags:
 
 # PreviewForge project memory
 
-This is the project-local canonical index for durable decisions and context. Temporary implementation details and secrets do not belong here. The mirrored VictusOS note is [Projects/PreviewForge](../../../vaults/second_brain/Projects/PreviewForge.md).
+This is the project-local canonical index for durable decisions and context. Temporary implementation details and secrets do not belong here. The mirrored VictusOS note is [Projects/PreviewForge](../../../../Documents/VictusOS/🏰%20300-Projects/PreviewForge.md).
 
 ## Product boundary
 
