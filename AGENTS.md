@@ -7,6 +7,7 @@ User instructions take precedence over this file. Keep changes scoped to the req
 - Read `docs/architecture/system-design.md` before changing component boundaries.
 - Read the relevant ADR before replacing an accepted decision.
 - For planning, backlog, handoff, or durable reporting work, also read `.agents/skills/previewforge-delivery/SKILL.md`.
+- For milestone planning or implementation with subagents, also read `.agents/skills/previewforge-milestone-orchestrator/SKILL.md`.
 - For control-plane, webhook, event, or deployment-state work, also read `.agents/skills/previewforge-control-plane/SKILL.md`.
 - For Kubernetes, BuildKit, routing, or workload security work, also read `.agents/skills/previewforge-kubernetes/SKILL.md`.
 

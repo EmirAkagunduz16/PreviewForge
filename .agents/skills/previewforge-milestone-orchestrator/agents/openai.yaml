@@ -1,0 +1,7 @@
+interface:
+  display_name: "PreviewForge Milestone Orchestrator"
+  short_description: "Orchestrate Luna milestones with real acceptance tests"
+  default_prompt: "Use $previewforge-milestone-orchestrator to plan and execute this milestone with collision-free Luna delegation and independent acceptance verification."
+
+policy:
+  allow_implicit_invocation: true
