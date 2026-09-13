@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-  DeploymentClaimConflictError,
   DeploymentClaimRepository,
   DeploymentClaimValidationError,
   KafkaDeliveryIdentityConflictError,
@@ -418,7 +417,10 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
           workerId: "worker-identity",
           leaseTtlMs: 30_000,
         }),
-      ).rejects.toBeInstanceOf(DeploymentClaimConflictError);
+      ).rejects.toMatchObject({
+        name: "DeploymentClaimConflictError",
+        code: "DEPLOYMENT_AGGREGATE_MISMATCH",
+      });
       await expectCleanQueued(prisma, fixture);
     },
   );
@@ -524,7 +526,10 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
         workerId: "worker-invariant",
         leaseTtlMs: 30_000,
       }),
-    ).rejects.toBeInstanceOf(DeploymentClaimConflictError);
+    ).rejects.toMatchObject({
+      name: "DeploymentClaimConflictError",
+      code: "DEPLOYMENT_CLAIM_INVARIANT",
+    });
     await expectCleanQueued(prisma, fixture);
     expect(
       await prisma.consumerReceipt.count({
@@ -553,7 +558,10 @@ describe("DeploymentClaimRepository (PostgreSQL)", () => {
         workerId: "worker-invariant",
         leaseTtlMs: 30_000,
       }),
-    ).rejects.toBeInstanceOf(DeploymentClaimConflictError);
+    ).rejects.toMatchObject({
+      name: "DeploymentClaimConflictError",
+      code: "DEPLOYMENT_CLAIM_INVARIANT",
+    });
     await expectQueuedNoMutation(prisma, fixture);
     expect(
       await prisma.kafkaDelivery.count({

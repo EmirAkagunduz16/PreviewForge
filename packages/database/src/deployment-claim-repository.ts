@@ -74,22 +74,34 @@ export class DeploymentClaimValidationError extends Error {
   }
 }
 export class KafkaDeliveryIdentityConflictError extends Error {
+  readonly code = "KAFKA_DELIVERY_IDENTITY_CONFLICT";
   constructor() {
     super("Kafka delivery offset identity conflicts with an existing delivery");
     this.name = "KafkaDeliveryIdentityConflictError";
   }
 }
+export type DeploymentClaimConflictCode =
+  | "DEPLOYMENT_AGGREGATE_MISMATCH"
+  | "DEPLOYMENT_CLAIM_INVARIANT"
+  | "DEPLOYMENT_CLAIM_RACE"
+  | "DEPLOYMENT_STATE_INVALID"
+  | "DEPLOYMENT_DURABLE_CONFLICT"
+  | "DEPLOYMENT_DATABASE_TIME_UNAVAILABLE"
+  | KafkaDeliveryNotClaimableCode;
 export class DeploymentClaimConflictError extends Error {
-  constructor(message: string) {
+  readonly code: DeploymentClaimConflictCode;
+  constructor(code: DeploymentClaimConflictCode, message: string) {
     super(message);
     this.name = "DeploymentClaimConflictError";
+    this.code = code;
   }
 }
 export type KafkaDeliveryNotClaimableCode = "DELIVERY_DEAD_LETTER" | "DELIVERY_RETRY_NOT_DUE";
 export class KafkaDeliveryNotClaimableError extends DeploymentClaimConflictError {
-  readonly code: KafkaDeliveryNotClaimableCode;
+  override readonly code: KafkaDeliveryNotClaimableCode;
   constructor(code: KafkaDeliveryNotClaimableCode) {
     super(
+      code,
       code === "DELIVERY_DEAD_LETTER"
         ? "Kafka delivery is dead-lettered"
         : "Kafka delivery retry is not due",
@@ -154,7 +166,10 @@ export class DeploymentClaimRepository {
         deployment.environmentId !== event.environmentId ||
         deployment.commitSha !== event.commitSha
       )
-        throw new DeploymentClaimConflictError("deployment request does not match its aggregate");
+        throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_AGGREGATE_MISMATCH",
+          "deployment request does not match its aggregate",
+        );
       if (
         deployment.environment.project.id !== event.projectId ||
         deployment.environment.project.repositoryFullName !== event.repositoryFullName ||
@@ -162,6 +177,7 @@ export class DeploymentClaimRepository {
           event.installationId
       )
         throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_AGGREGATE_MISMATCH",
           "deployment request does not match its project aggregate",
         );
       const receipt = await tx.consumerReceipt.findUnique({
@@ -174,7 +190,10 @@ export class DeploymentClaimRepository {
       });
       if (receipt !== null) {
         if (deployment.status === "QUEUED")
-          throw new DeploymentClaimConflictError("consumer receipt exists for a queued deployment");
+          throw new DeploymentClaimConflictError(
+            "DEPLOYMENT_CLAIM_INVARIANT",
+            "consumer receipt exists for a queued deployment",
+          );
         if (
           deployment.status === "CLONING" &&
           deployment.leaseExpiresAt !== null &&
@@ -198,7 +217,10 @@ export class DeploymentClaimRepository {
             now,
           );
           if (takeover === null)
-            throw new DeploymentClaimConflictError("deployment lease takeover lost a race");
+            throw new DeploymentClaimConflictError(
+              "DEPLOYMENT_CLAIM_RACE",
+              "deployment lease takeover lost a race",
+            );
           await markDeliveryProcessed(tx, delivery.id, now);
           return {
             kind: "RECLAIMED",
@@ -222,7 +244,10 @@ export class DeploymentClaimRepository {
         };
       }
       if (delivery.status === "PROCESSED") {
-        throw new DeploymentClaimConflictError("processed Kafka delivery has no semantic receipt");
+        throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_CLAIM_INVARIANT",
+          "processed Kafka delivery has no semantic receipt",
+        );
       }
       if (deployment.status === "QUEUED") {
         if (deployment.environment.desiredCommitSha !== event.commitSha) {
@@ -265,7 +290,10 @@ export class DeploymentClaimRepository {
         });
         const claimed = updated[0];
         if (claimed === undefined)
-          throw new DeploymentClaimConflictError("deployment claim lost a race");
+          throw new DeploymentClaimConflictError(
+            "DEPLOYMENT_CLAIM_RACE",
+            "deployment claim lost a race",
+          );
         await createTransitionOutbox(tx, claimed, "QUEUED", "CLONING", now);
         input.faultInjector?.("before-receipt");
         await tx.consumerReceipt.create({
@@ -302,7 +330,8 @@ export class DeploymentClaimRepository {
         };
       }
       throw new DeploymentClaimConflictError(
-        `deployment ${deployment.id} is already in ${deployment.status}`,
+        "DEPLOYMENT_STATE_INVALID",
+        "deployment is already in an unsupported state",
       );
     });
   }
@@ -660,7 +689,10 @@ async function createTransitionOutbox(
   occurredAt: Date,
 ): Promise<void> {
   if (!canTransitionDeployment(fromStatus, toStatus))
-    throw new DeploymentClaimConflictError("illegal deployment transition");
+    throw new DeploymentClaimConflictError(
+      "DEPLOYMENT_STATE_INVALID",
+      "illegal deployment transition",
+    );
   const eventId = randomUUID();
   await tx.outboxEvent.create({
     data: {
@@ -689,7 +721,10 @@ async function supersedeDeployment(
   const currentStatus = deploymentStatusSchema.parse(deployment.status);
   if (!canTransitionDeployment(currentStatus, "SUPERSEDED")) {
     if (isTerminal(currentStatus)) return;
-    throw new DeploymentClaimConflictError("deployment cannot be superseded");
+    throw new DeploymentClaimConflictError(
+      "DEPLOYMENT_STATE_INVALID",
+      "deployment cannot be superseded",
+    );
   }
   const updated = await tx.deployment.updateManyAndReturn({
     where: {
@@ -793,7 +828,10 @@ async function serverNow(tx: TransactionClient): Promise<Date> {
   );
   const value = rows[0]?.now;
   if (!(value instanceof Date))
-    throw new DeploymentClaimConflictError("database server time unavailable");
+    throw new DeploymentClaimConflictError(
+      "DEPLOYMENT_DATABASE_TIME_UNAVAILABLE",
+      "database server time unavailable",
+    );
   return value;
 }
 function retryDelayMs(retry: number): number {
@@ -817,8 +855,16 @@ async function withSerializableRetry<T>(
         await wait(retryDelayMs(retry));
         continue;
       }
+      if (isSerializationConflict(error))
+        throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_CLAIM_RACE",
+          "deployment transaction conflicted after bounded retries",
+        );
       if (isUniqueConflict(error))
-        throw new DeploymentClaimConflictError("claim conflicts with an existing durable record");
+        throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_DURABLE_CONFLICT",
+          "claim conflicts with an existing durable record",
+        );
       throw error;
     }
   }
