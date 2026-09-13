@@ -13,6 +13,7 @@ export type OutboxClaimOptions = {
   owner: string;
   limit?: number;
   leaseDurationMs?: number;
+  maxAttempts?: number;
 };
 
 export type OutboxRelayRecord = {
@@ -120,8 +121,28 @@ export class OutboxRelayRepository {
       "lease duration",
       MAX_LEASE_DURATION_MS,
     );
+    const maxAttempts = validatePositiveInteger(
+      options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      "maximum attempts",
+      100,
+    );
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`
+          UPDATE "outbox_events"
+          SET "dead_lettered_at" = CURRENT_TIMESTAMP,
+              "dead_letter_reason" = 'MAX_ATTEMPTS_EXHAUSTED',
+              "claim_token" = NULL,
+              "claim_owner" = NULL,
+              "claim_expires_at" = NULL
+          WHERE "published_at" IS NULL
+            AND "dead_lettered_at" IS NULL
+            AND "available_at" <= CURRENT_TIMESTAMP
+            AND "attempts" >= ${maxAttempts}
+            AND ("claim_expires_at" IS NULL OR "claim_expires_at" <= CURRENT_TIMESTAMP)
+        `,
+      );
       const candidates = await tx.$queryRaw<Array<{ id: string }>>(
         Prisma.sql`
           SELECT "id"
@@ -129,6 +150,7 @@ export class OutboxRelayRepository {
           WHERE "published_at" IS NULL
             AND "dead_lettered_at" IS NULL
             AND "available_at" <= CURRENT_TIMESTAMP
+            AND "attempts" < ${maxAttempts}
             AND ("claim_expires_at" IS NULL OR "claim_expires_at" <= CURRENT_TIMESTAMP)
           ORDER BY "created_at" ASC, "id" ASC
           LIMIT ${limit}
@@ -142,13 +164,16 @@ export class OutboxRelayRepository {
         const rows = await tx.$queryRaw<OutboxRow[]>(
           Prisma.sql`
             UPDATE "outbox_events"
-            SET "claim_token" = ${claimToken}::uuid,
+            SET "attempts" = "attempts" + 1,
+                "last_attempt_at" = CURRENT_TIMESTAMP,
+                "claim_token" = ${claimToken}::uuid,
                 "claim_owner" = ${owner},
                 "claim_expires_at" = CURRENT_TIMESTAMP + (${leaseDurationMs} * INTERVAL '1 millisecond')
             WHERE "id" = ${candidate.id}::uuid
               AND "published_at" IS NULL
               AND "dead_lettered_at" IS NULL
               AND "available_at" <= CURRENT_TIMESTAMP
+              AND "attempts" < ${maxAttempts}
               AND ("claim_expires_at" IS NULL OR "claim_expires_at" <= CURRENT_TIMESTAMP)
             RETURNING *
           `,
@@ -168,9 +193,7 @@ export class OutboxRelayRepository {
       const rows = await tx.$queryRaw<OutboxRow[]>(
         Prisma.sql`
           UPDATE "outbox_events"
-          SET "attempts" = "attempts" + 1,
-              "last_attempt_at" = CURRENT_TIMESTAMP,
-              "published_at" = CURRENT_TIMESTAMP,
+          SET "published_at" = CURRENT_TIMESTAMP,
               "claim_token" = NULL,
               "claim_owner" = NULL,
               "claim_expires_at" = NULL
@@ -217,21 +240,19 @@ export class OutboxRelayRepository {
       const rows = await tx.$queryRaw<OutboxRow[]>(
         Prisma.sql`
           UPDATE "outbox_events"
-          SET "attempts" = "attempts" + 1,
-              "last_attempt_at" = CURRENT_TIMESTAMP,
-              "last_error" = ${safeMessage},
+          SET "last_error" = ${safeMessage},
               "available_at" = CASE
-                WHEN ${failure.retryable} AND ("attempts" + 1) < ${maxAttempts}
+                WHEN ${failure.retryable} AND "attempts" < ${maxAttempts}
                   THEN CURRENT_TIMESTAMP + (${retryDelayMs} * INTERVAL '1 millisecond')
                 ELSE CURRENT_TIMESTAMP
               END,
               "dead_lettered_at" = CASE
-                WHEN ${failure.retryable} AND ("attempts" + 1) < ${maxAttempts}
+                WHEN ${failure.retryable} AND "attempts" < ${maxAttempts}
                   THEN NULL
                 ELSE CURRENT_TIMESTAMP
               END,
               "dead_letter_reason" = CASE
-                WHEN ${failure.retryable} AND ("attempts" + 1) < ${maxAttempts}
+                WHEN ${failure.retryable} AND "attempts" < ${maxAttempts}
                   THEN NULL
                 ELSE ${safeReason}
               END,

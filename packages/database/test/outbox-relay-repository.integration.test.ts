@@ -75,6 +75,21 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     );
   });
 
+  it("reserves the attempt at claim time and keeps it unchanged on successful settlement", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const repository = new OutboxRelayRepository(prisma);
+    const claimed = (
+      await repository.claimBatch({ owner: "relay-reserve", leaseDurationMs: 10_000 })
+    )[0];
+    if (!claimed?.claimToken) throw new Error("reservation claim was not returned");
+    expect(claimed.attempts).toBe(1);
+    expect(claimed.lastAttemptAt).toEqual(expect.any(Date));
+    const published = await repository.markPublished(claimed.id, claimed.claimToken);
+    expect(published.outcome).toBe("PUBLISHED");
+    expect(published.outbox.attempts).toBe(1);
+  });
+
   it("takes over an expired claim with a new token and owner", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
@@ -83,7 +98,7 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     const first = await repository.claimBatch({ owner: "relay-old", leaseDurationMs: 25 });
     const oldClaim = first[0];
     if (!oldClaim?.claimToken) throw new Error("initial claim was not returned");
-    await wait(80);
+    await waitForLeaseExpiry(prisma, firstOutboxId(fixture));
 
     const second = await repository.claimBatch({ owner: "relay-new", leaseDurationMs: 10_000 });
     const newClaim = second[0];
@@ -99,7 +114,7 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     const first = await repository.claimBatch({ owner: "relay-old", leaseDurationMs: 25 });
     const oldClaim = first[0];
     if (!oldClaim?.claimToken) throw new Error("initial claim was not returned");
-    await wait(80);
+    await waitForLeaseExpiry(prisma, firstOutboxId(fixture));
     const second = await repository.claimBatch({ owner: "relay-new", leaseDurationMs: 10_000 });
     const newClaim = second[0];
     if (!newClaim?.claimToken) throw new Error("takeover claim was not returned");
@@ -111,7 +126,7 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     const published = await repository.markPublished(outboxId, newClaim.claimToken);
     expect(published.outcome).toBe("PUBLISHED");
     expect(published.outbox).toMatchObject({
-      attempts: 1,
+      attempts: 2,
       publishedAt: expect.any(Date),
       lastAttemptAt: expect.any(Date),
       claimToken: null,
@@ -126,7 +141,8 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
 
     const first = await repository.claimBatch({ owner: "relay-crashed", leaseDurationMs: 25 });
     expect(first).toHaveLength(1);
-    await wait(80);
+    expect(first[0]?.attempts).toBe(1);
+    await waitForLeaseExpiry(prisma, firstOutboxId(fixture));
 
     const reclaimed = await repository.claimBatch({
       owner: "relay-restarted",
@@ -134,12 +150,13 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     });
     expect(reclaimed).toHaveLength(1);
     expect(reclaimed[0]?.publishedAt).toBeNull();
+    expect(reclaimed[0]?.attempts).toBe(2);
     if (!reclaimed[0]?.claimToken) throw new Error("reclaimed row has no claim token");
     const outboxId = firstOutboxId(fixture);
     await repository.markPublished(outboxId, reclaimed[0].claimToken);
     const row = await prisma.outboxEvent.findUnique({ where: { id: outboxId } });
     expect(row).toMatchObject({
-      attempts: 1,
+      attempts: 2,
       publishedAt: expect.any(Date),
       lastAttemptAt: expect.any(Date),
       claimToken: null,
@@ -173,13 +190,13 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     expect(failure.outbox.lastError).not.toContain("ghp_super-secret-token");
     expect(await repository.claimBatch({ owner: "relay-too-early" })).toHaveLength(0);
 
-    await wait(260);
+    await waitForAvailability(prisma, outboxId);
     const rescheduled = await repository.claimBatch({
       owner: "relay-after-backoff",
       leaseDurationMs: 10_000,
     });
     expect(rescheduled).toHaveLength(1);
-    expect(rescheduled[0]?.attempts).toBe(1);
+    expect(rescheduled[0]?.attempts).toBe(2);
   });
 
   it("dead-letters nonretryable failures and never deletes the row", async () => {
@@ -231,7 +248,7 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
       retryDelayMs: 1,
     });
     expect(scheduled.outcome).toBe("RETRY_SCHEDULED");
-    await wait(30);
+    await waitForAvailability(prisma, outboxId);
 
     const second = (
       await repository.claimBatch({ owner: "relay-attempt-2", leaseDurationMs: 10_000 })
@@ -246,6 +263,40 @@ describe("OutboxRelayRepository (PostgreSQL)", () => {
     });
     expect(exhausted.outcome).toBe("DEAD_LETTER");
     expect(exhausted.outbox.attempts).toBe(2);
+  });
+
+  it("bounds repeated un-settled publish crashes and durably dead-letters at exhaustion", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const repository = new OutboxRelayRepository(prisma);
+    const outboxId = firstOutboxId(fixture);
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const claimed = (
+        await repository.claimBatch({
+          owner: `relay-crash-${attempt}`,
+          leaseDurationMs: 25,
+          maxAttempts,
+        })
+      )[0];
+      expect(claimed).toMatchObject({ id: outboxId, attempts: attempt });
+      await waitForLeaseExpiry(prisma, outboxId);
+    }
+
+    expect(
+      await repository.claimBatch({ owner: "relay-after-exhaustion", maxAttempts }),
+    ).toHaveLength(0);
+    const exhausted = await prisma.outboxEvent.findUnique({ where: { id: outboxId } });
+    expect(exhausted).toMatchObject({
+      attempts: maxAttempts,
+      deadLetteredAt: expect.any(Date),
+      deadLetterReason: "MAX_ATTEMPTS_EXHAUSTED",
+      claimToken: null,
+      claimOwner: null,
+      claimExpiresAt: null,
+      publishedAt: null,
+    });
   });
 
   it("rejects unsafe relay and failure inputs without echoing secret text", async () => {
@@ -327,6 +378,34 @@ async function createFixture(prisma: PrismaClient, count = 1): Promise<Fixture> 
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForLeaseExpiry(prisma: PrismaClient, outboxId: string): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const row = await prisma.outboxEvent.findUnique({
+      where: { id: outboxId },
+      select: { claimExpiresAt: true },
+    });
+    const server = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS "now"`;
+    if (row?.claimExpiresAt && server[0] && server[0].now >= row.claimExpiresAt) return;
+    await wait(10);
+  }
+  throw new Error("outbox claim did not expire within bounded test window");
+}
+
+async function waitForAvailability(prisma: PrismaClient, outboxId: string): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    const row = await prisma.outboxEvent.findUnique({
+      where: { id: outboxId },
+      select: { availableAt: true },
+    });
+    const server = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS "now"`;
+    if (row?.availableAt && server[0] && server[0].now >= row.availableAt) return;
+    await wait(10);
+  }
+  throw new Error("outbox retry did not become available within bounded test window");
 }
 
 function firstOutboxId(fixture: Fixture): string {
