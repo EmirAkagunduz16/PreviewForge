@@ -125,6 +125,12 @@ model Deployment {
   imageDigest      String?            @map("image_digest")
   startedAt        DateTime?          @map("started_at")
   finishedAt       DateTime?          @map("finished_at")
+  leaseToken       String?            @map("lease_token") @db.Uuid
+  leaseOwner       String?            @map("lease_owner")
+  leaseGeneration  Int                @default(0) @map("lease_generation")
+  leaseAcquiredAt  DateTime?          @map("lease_acquired_at")
+  leaseRenewedAt   DateTime?          @map("lease_renewed_at")
+  leaseExpiresAt   DateTime?          @map("lease_expires_at")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
   environment      PreviewEnvironment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
@@ -132,6 +138,8 @@ model Deployment {
 
   @@unique([environmentId, attempt])
   @@index([environmentId, status])
+  @@index([environmentId, leaseExpiresAt])
+  @@index([status, leaseExpiresAt])
   @@index([commitSha])
   @@map("deployments")
 }
@@ -240,9 +248,17 @@ model OutboxEvent {
   availableAt   DateTime  @default(now()) @map("available_at")
   publishedAt   DateTime? @map("published_at")
   lastError     String?   @map("last_error")
+  claimToken    String?   @map("claim_token") @db.Uuid
+  claimOwner    String?   @map("claim_owner")
+  claimExpiresAt DateTime? @map("claim_expires_at")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  deadLetteredAt DateTime? @map("dead_lettered_at")
+  deadLetterReason String? @map("dead_letter_reason")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([publishedAt, availableAt])
+  @@index([publishedAt, availableAt, claimExpiresAt])
+  @@index([deadLetteredAt, availableAt])
   @@index([aggregateType, aggregateId])
   @@map("outbox_events")
 }
@@ -256,6 +272,38 @@ model ConsumerReceipt {
   @@unique([consumerName, eventId])
   @@index([eventId])
   @@map("consumer_receipts")
+}
+
+/// Durable Kafka delivery metadata. The payload is intentionally absent; only
+/// a digest and safe, parseable event identity are retained for retries and
+/// dead-letter operations.
+model KafkaDelivery {
+  id              String    @id @default(uuid()) @db.Uuid
+  consumerName    String    @map("consumer_name")
+  topic           String
+  partition       Int
+  offset          BigInt
+  eventId         String?   @map("event_id") @db.Uuid
+  eventType       String?   @map("event_type")
+  environmentId   String?   @map("environment_id") @db.Uuid
+  aggregateId     String?   @map("aggregate_id") @db.Uuid
+  payloadDigest   String    @map("payload_digest")
+  status          String    @default("RECEIVED")
+  attempts        Int       @default(1)
+  availableAt     DateTime  @default(now()) @map("available_at")
+  lastAttemptAt   DateTime? @map("last_attempt_at")
+  processedAt     DateTime? @map("processed_at")
+  deadLetteredAt  DateTime? @map("dead_lettered_at")
+  errorCode       String?   @map("error_code")
+  errorMessage    String?   @map("error_message")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([consumerName, topic, partition, offset])
+  @@index([consumerName, eventId])
+  @@index([status, availableAt])
+  @@index([payloadDigest])
+  @@map("kafka_deliveries")
 }
 
 model LogChunk {
