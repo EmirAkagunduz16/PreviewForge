@@ -1,0 +1,31 @@
+{
+  "name": "previewforge",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22.12.0 <23",
+    "pnpm": ">=10 <11"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "check": "biome check . && pnpm docs:check && turbo run typecheck test build && pnpm test:integration",
+    "dev": "turbo run dev",
+    "docs:check": "node scripts/check-markdown-links.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "format": "biome check --write .",
+    "infra:down": "node scripts/local-infra.mjs down",
+    "infra:logs": "node scripts/local-infra.mjs logs -f",
+    "infra:up": "node scripts/local-infra.mjs up -d --wait",
+    "test": "turbo run test",
+    "test:integration": "pnpm --filter @previewforge/database test:integration",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@types/node": "22.20.2",
+    "turbo": "2.10.12",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

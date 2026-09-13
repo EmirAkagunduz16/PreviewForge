@@ -1,0 +1,46 @@
+CREATE SCHEMA IF NOT EXISTS "public";
+
+CREATE TABLE "users" ("id" UUID NOT NULL, "github_user_id" TEXT NOT NULL, "github_login" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "users_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "installations" ("id" UUID NOT NULL, "github_installation_id" INTEGER NOT NULL, "account_login" TEXT NOT NULL, "account_type" TEXT NOT NULL, "encrypted_private_key" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, "owner_id" UUID NOT NULL, CONSTRAINT "installations_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "projects" ("id" UUID NOT NULL, "installation_id" UUID NOT NULL, "owner_id" UUID NOT NULL, "repository_full_name" TEXT NOT NULL, "default_branch" TEXT NOT NULL DEFAULT 'main', "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "projects_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "pull_requests" ("id" UUID NOT NULL, "project_id" UUID NOT NULL, "number" INTEGER NOT NULL, "title" TEXT, "head_sha" TEXT NOT NULL, "state" TEXT NOT NULL DEFAULT 'OPEN', "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "pull_requests_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "preview_environments" ("id" UUID NOT NULL, "project_id" UUID NOT NULL, "pull_request_id" UUID, "preview_key" TEXT NOT NULL, "desired_commit_sha" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'ACTIVE', "expires_at" TIMESTAMP(3), "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "preview_environments_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "deployments" ("id" UUID NOT NULL, "environment_id" UUID NOT NULL, "attempt" INTEGER NOT NULL DEFAULT 1, "commit_sha" TEXT NOT NULL, "status" TEXT NOT NULL DEFAULT 'QUEUED', "failure_stage" TEXT, "failure_code" TEXT, "failure_message" TEXT, "failure_retryable" BOOLEAN, "check_run_id" TEXT, "image_digest" TEXT, "started_at" TIMESTAMP(3), "finished_at" TIMESTAMP(3), "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "deployments_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "webhook_deliveries" ("id" UUID NOT NULL, "delivery_id" TEXT NOT NULL, "event_name" TEXT NOT NULL, "payload_sha256" TEXT NOT NULL, "installation_id" UUID, "received_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "processed_at" TIMESTAMP(3), "status" TEXT NOT NULL DEFAULT 'RECEIVED', "failure_reason" TEXT, CONSTRAINT "webhook_deliveries_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "outbox_events" ("id" UUID NOT NULL, "event_type" TEXT NOT NULL, "aggregate_type" TEXT NOT NULL, "aggregate_id" UUID NOT NULL, "payload" JSONB NOT NULL, "attempts" INTEGER NOT NULL DEFAULT 0, "available_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "published_at" TIMESTAMP(3), "last_error" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "outbox_events_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "consumer_receipts" ("id" UUID NOT NULL, "consumer_name" TEXT NOT NULL, "event_id" UUID NOT NULL, "processed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "consumer_receipts_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "log_chunks" ("id" UUID NOT NULL, "deployment_id" UUID NOT NULL, "sequence" INTEGER NOT NULL, "stage" TEXT NOT NULL, "stream" TEXT NOT NULL, "text" TEXT NOT NULL, "emitted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "log_chunks_pkey" PRIMARY KEY ("id"));
+
+CREATE UNIQUE INDEX "users_github_user_id_key" ON "users"("github_user_id");
+CREATE UNIQUE INDEX "installations_github_installation_id_key" ON "installations"("github_installation_id");
+CREATE INDEX "installations_owner_id_idx" ON "installations"("owner_id");
+CREATE UNIQUE INDEX "projects_installation_id_repository_full_name_key" ON "projects"("installation_id", "repository_full_name");
+CREATE INDEX "projects_owner_id_idx" ON "projects"("owner_id");
+CREATE UNIQUE INDEX "pull_requests_project_id_number_key" ON "pull_requests"("project_id", "number");
+CREATE INDEX "pull_requests_project_id_state_idx" ON "pull_requests"("project_id", "state");
+CREATE UNIQUE INDEX "preview_environments_pull_request_id_key" ON "preview_environments"("pull_request_id");
+CREATE UNIQUE INDEX "preview_environments_preview_key_key" ON "preview_environments"("preview_key");
+CREATE UNIQUE INDEX "preview_environments_project_id_preview_key_key" ON "preview_environments"("project_id", "preview_key");
+CREATE INDEX "preview_environments_status_expires_at_idx" ON "preview_environments"("status", "expires_at");
+CREATE UNIQUE INDEX "deployments_environment_id_attempt_key" ON "deployments"("environment_id", "attempt");
+CREATE INDEX "deployments_environment_id_status_idx" ON "deployments"("environment_id", "status");
+CREATE INDEX "deployments_commit_sha_idx" ON "deployments"("commit_sha");
+CREATE UNIQUE INDEX "webhook_deliveries_delivery_id_key" ON "webhook_deliveries"("delivery_id");
+CREATE INDEX "webhook_deliveries_installation_id_received_at_idx" ON "webhook_deliveries"("installation_id", "received_at");
+CREATE INDEX "webhook_deliveries_status_received_at_idx" ON "webhook_deliveries"("status", "received_at");
+CREATE INDEX "outbox_events_published_at_available_at_idx" ON "outbox_events"("published_at", "available_at");
+CREATE INDEX "outbox_events_aggregate_type_aggregate_id_idx" ON "outbox_events"("aggregate_type", "aggregate_id");
+CREATE UNIQUE INDEX "consumer_receipts_consumer_name_event_id_key" ON "consumer_receipts"("consumer_name", "event_id");
+CREATE INDEX "consumer_receipts_event_id_idx" ON "consumer_receipts"("event_id");
+CREATE UNIQUE INDEX "log_chunks_deployment_id_sequence_key" ON "log_chunks"("deployment_id", "sequence");
+CREATE INDEX "log_chunks_deployment_id_emitted_at_idx" ON "log_chunks"("deployment_id", "emitted_at");
+
+ALTER TABLE "installations" ADD CONSTRAINT "installations_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "projects" ADD CONSTRAINT "projects_installation_id_fkey" FOREIGN KEY ("installation_id") REFERENCES "installations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "projects" ADD CONSTRAINT "projects_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "pull_requests" ADD CONSTRAINT "pull_requests_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "preview_environments" ADD CONSTRAINT "preview_environments_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "preview_environments" ADD CONSTRAINT "preview_environments_pull_request_id_fkey" FOREIGN KEY ("pull_request_id") REFERENCES "pull_requests"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "deployments" ADD CONSTRAINT "deployments_environment_id_fkey" FOREIGN KEY ("environment_id") REFERENCES "preview_environments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_installation_id_fkey" FOREIGN KEY ("installation_id") REFERENCES "installations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "log_chunks" ADD CONSTRAINT "log_chunks_deployment_id_fkey" FOREIGN KEY ("deployment_id") REFERENCES "deployments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
