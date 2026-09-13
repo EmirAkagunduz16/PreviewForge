@@ -95,13 +95,48 @@ describe("GitHubClient", () => {
         );
       }
       if (url.pathname === "/user/installations/42/repositories") {
+        if (url.searchParams.get("page") === "2") {
+          return new Response(
+            JSON.stringify({
+              total_count: 3,
+              incomplete_results: false,
+              repositories: [
+                {
+                  id: 43,
+                  name: "other",
+                  full_name: "octo/other",
+                  permissions: { pull: true, push: true, admin: true },
+                },
+                {
+                  id: 44,
+                  name: "third",
+                  full_name: "octo/third",
+                  permissions: { push: false },
+                },
+              ],
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
+        }
         return new Response(
           JSON.stringify({
-            total_count: 1,
+            total_count: 3,
             incomplete_results: false,
-            repositories: [{ id: 43, name: "other", full_name: "octo/other" }],
+            repositories: [
+              {
+                id: 42,
+                name: "other",
+                full_name: "octo/other",
+                permissions: { pull: false, push: true, admin: true },
+              },
+            ],
           }),
-          { headers: { "content-type": "application/json" } },
+          {
+            headers: {
+              "content-type": "application/json",
+              link: '<https://api.github.com/user/installations/42/repositories?page=2>; rel="next"',
+            },
+          },
         );
       }
       if (url.pathname === "/user/installations/42") {
@@ -133,8 +168,12 @@ describe("GitHubClient", () => {
       { id: "42", name: "repo", fullName: "octo/repo" },
     ]);
     await expect(client.listUserInstallationRepositories("42", "user-token")).resolves.toEqual([
-      { id: "43", name: "other", fullName: "octo/other" },
+      { id: "42", name: "other", fullName: "octo/other", pull: false },
+      { id: "43", name: "other", fullName: "octo/other", pull: true },
+      { id: "44", name: "third", fullName: "octo/third" },
     ]);
+    const listedRepositories = await client.listUserInstallationRepositories("42", "user-token");
+    expect(listedRepositories.every((repository) => !("permissions" in repository))).toBe(true);
     await expect(client.getAuthenticatedUser("user-token")).resolves.toEqual({
       id: "9",
       login: "octo",

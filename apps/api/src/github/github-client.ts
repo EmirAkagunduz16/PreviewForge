@@ -59,6 +59,7 @@ export type GitHubRepository = {
   ownerLogin?: string;
   private?: boolean;
   defaultBranch?: string;
+  pull?: boolean;
 };
 
 export type GitHubUser = {
@@ -424,6 +425,9 @@ function parseRepositoryPage(value: unknown): GitHubRepository[] {
       ...(owner ? { ownerLogin: owner } : {}),
       ...(typeof item.private === "boolean" ? { private: item.private } : {}),
       ...(typeof item.default_branch === "string" ? { defaultBranch: item.default_branch } : {}),
+      ...(isRecord(item.permissions) && typeof item.permissions.pull === "boolean"
+        ? { pull: item.permissions.pull }
+        : {}),
     };
   });
 }
