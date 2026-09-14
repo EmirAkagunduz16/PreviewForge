@@ -14,6 +14,7 @@
     "docs:check": "node scripts/check-markdown-links.mjs && node scripts/check-context-consistency.mjs",
     "doctor": "node scripts/doctor.mjs",
     "format": "biome check --write .",
+    "generate": "pnpm --filter @previewforge/database generate",
     "infra:down": "node scripts/local-infra.mjs down",
     "infra:logs": "node scripts/local-infra.mjs logs -f",
     "infra:up": "node scripts/local-infra.mjs up -d --wait",

@@ -90,6 +90,11 @@ jobs:
           node-version: 22.18.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma Client
+        run: pnpm generate
+        env:
+          # Prisma 7 loads prisma.config.ts during generation; no connection is opened.
+          DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
 
       - name: Run real BuildKit and registry acceptance
         shell: bash
