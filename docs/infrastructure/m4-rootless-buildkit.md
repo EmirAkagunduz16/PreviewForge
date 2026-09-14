@@ -41,6 +41,18 @@ Profile verification has two separate fail-closed stages:
 
 No unrelated system profile is patched, disabled, or switched between complain and enforce mode.
 
+Ubuntu 24.04 also ships `/etc/apparmor.d/rootlesskit` as a per-binary
+`flags=(unconfined) { userns, }` profile. PreviewForge does not replace or edit that system profile
+and does not adopt its unconfined trade-off. The custom confined profile intentionally has no
+automatic `/usr/bin/rootlesskit` attachment; the start script enters it explicitly with:
+
+```text
+aa-exec -p previewforge-rootlesskit -- rootlesskit ...
+```
+
+This avoids competing executable attachments while retaining the custom capability, path, socket,
+and credential-deny rules throughout RootlessKit's namespace setup and child processes.
+
 The workflow never sets `kernel.apparmor_restrict_unprivileged_userns=0`, uses `--privileged`,
 `apparmor=unconfined`, `seccomp=unconfined`, host networking, a Docker socket, or a BuildKit TCP
 listener. A hosted image may contain a Docker daemon for unrelated actions; the prerequisite

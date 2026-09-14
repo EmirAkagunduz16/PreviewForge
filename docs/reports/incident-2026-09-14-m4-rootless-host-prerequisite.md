@@ -170,6 +170,28 @@ the restricted daemon user. The fix is a root-only staging boundary:
 The AppArmor profile remains unchanged because all runtime files and the socket stay below the
 existing `/var/tmp/previewforge-buildkit/**` allowlist.
 
+## RootlessKit user namespace profile conflict
+
+The diagnostic hosted run captured the exact kernel records behind the `/proc/self/exe` userspace
+error:
+
+```text
+apparmor="AUDIT" operation="exec" info="conflicting profile attachments" name="/usr/bin/rootlesskit"
+apparmor="AUDIT" operation="userns_create" target="unprivileged_userns" execpath="/usr/bin/rootlesskit"
+apparmor="DENIED" operation="capable" profile="unprivileged_userns" capname="sys_admin"
+```
+
+There was no `/proc/self/exe` execute denial. The custom profile and Ubuntu's packaged rootlesskit
+profile both attached to `/usr/bin/rootlesskit`; the conflict prevented the custom confined profile
+from governing namespace creation, and AppArmor transitioned the process into
+`unprivileged_userns`, where the required namespaced `sys_admin` capability was denied.
+
+Ubuntu's packaged profile uses the per-binary `flags=(unconfined) { userns, }` model. PreviewForge
+does not modify that system profile or adopt its unconfined security trade-off. Instead, the custom
+confined profile drops its automatic executable attachment and is selected explicitly through
+`aa-exec -p previewforge-rootlesskit`. This preserves its existing `userns`, capability, filesystem,
+socket, and credential-deny rules without adding broad `/proc` execution access.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)

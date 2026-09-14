@@ -2,7 +2,11 @@
 
 # This profile is loaded only on the disposable M4 runner. It deliberately does
 # not alter kernel.apparmor_restrict_unprivileged_userns globally.
-profile previewforge-rootlesskit /usr/bin/rootlesskit flags=(attach_disconnected,mediate_deleted) {
+# Deliberately omit an exec attachment. Ubuntu ships its own attachment for
+# /usr/bin/rootlesskit; a second attachment conflicts and causes userns_create
+# to fall through to the restrictive unprivileged_userns profile. The start
+# script enters this named profile explicitly with aa-exec.
+profile previewforge-rootlesskit flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
   userns,

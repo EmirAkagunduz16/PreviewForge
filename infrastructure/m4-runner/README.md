@@ -73,7 +73,9 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    The checkout is not readable by the restricted daemon user.
 7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
    the staged runtime files and fails closed when either is missing or has the wrong ownership or
-   mode.
+   mode. It enters the named confined AppArmor profile explicitly with `aa-exec`; the profile has
+   no automatic executable attachment, so it does not conflict with Ubuntu's packaged
+   `/usr/bin/rootlesskit` attachment.
 8. Smoke-check `http://127.0.0.1:5000/v2/` and
    `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
 9. If startup or smoke checks fail, the workflow prints filtered kernel AppArmor/rootlesskit

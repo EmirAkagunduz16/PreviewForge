@@ -8,6 +8,7 @@ fi
 command -v rootlesskit >/dev/null
 command -v buildkitd >/dev/null
 command -v registry >/dev/null
+command -v aa-exec >/dev/null
 
 root_dir="${BUILDKIT_ROOT:-/var/tmp/previewforge-buildkit}"
 registry_config="${root_dir}/registry-config.yml"
@@ -56,7 +57,7 @@ clean_env=(
   "BUILDKIT_SOCKET=$socket_path"
   "BUILDKIT_ROOT=$root_dir"
 )
-env -i "${clean_env[@]}" nohup rootlesskit \
+env -i "${clean_env[@]}" nohup aa-exec -p previewforge-rootlesskit -- rootlesskit \
   --net=slirp4netns \
   --disable-host-loopback \
   --copy-up=/etc \
