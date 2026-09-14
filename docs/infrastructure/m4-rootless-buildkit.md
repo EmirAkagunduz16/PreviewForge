@@ -80,10 +80,16 @@ and namespace metadata inaccessible to the workflow client and gives hosted vali
 The daemon stays rootless, while the BuildKit test client runs as the normal GitHub checkout user
 so it can read `node_modules` and the test source without broadening repository or `.git`
 permissions. The runtime directory is setgid with execute-only access for that user's primary
-group, allowing access to the Unix socket but not directory listing or staged-config reads. The
-daemon/rootlesskit environment is constructed with an explicit allowlist containing only runtime
-paths, `PATH`, locale, and `HOME`; GitHub, platform, database, and registry credentials are not
-inherited. The client adapter independently scrubs its `buildctl` child environment.
+group, allowing access to the Unix socket but not directory listing or staged-config reads. BuildKit
+v0.33.0 then applies its own socket `chown` after creation, so the root-only
+`scripts/m4-runner/authorize-buildkit-client.sh` waits for the daemon-owned socket, rejects missing,
+non-socket, and symlink targets, and changes only that socket to the runner's primary group with
+mode `0660`. It verifies the final `previewforge-buildkit:<client-group>:660` metadata before the
+normal runner user invokes `buildctl`; staged configs remain `0600`, RootlessKit state remains
+`0700`, and the runtime directory remains `2710`. The daemon/rootlesskit environment is constructed
+with an explicit allowlist containing only runtime paths, `PATH`, locale, and `HOME`; GitHub,
+platform, database, and registry credentials are not inherited. The client adapter independently
+scrubs its `buildctl` child environment.
 
 ## Canonical topology
 
@@ -146,6 +152,7 @@ credential/privilege-boundary checks. M4 remains blocked until this hosted workf
 
 Before that acceptance test runs, the same hosted job must prove, in order: a live RootlessKit
 child in a distinct user namespace; successful UID/GID maps matching configured subordinate IDs;
-registry readiness; a BuildKit Unix socket; and `buildctl debug workers`. A passing parser or local
-unit suite is not hosted startup evidence. M4 is COMPLETE only when those five checks plus fixture
-build, registry push, and immutable digest verification all pass in one real hosted run.
+registry readiness; a BuildKit Unix socket; socket authorization for the normal runner group; and
+`buildctl debug workers`. A passing parser or local unit suite is not hosted startup evidence. M4
+is COMPLETE only when those six checks plus fixture build, registry push, and immutable digest
+verification all pass in one real hosted run.

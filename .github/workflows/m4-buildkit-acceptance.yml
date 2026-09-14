@@ -103,6 +103,13 @@ jobs:
           sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
           exit 1
 
+      - name: Authorize normal BuildKit client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo env BUILDKIT_CLIENT_GROUP="$(id -gn)" \
+            ./scripts/m4-runner/authorize-buildkit-client.sh
+
       - name: Verify BuildKit workers
         run: |
           buildctl \

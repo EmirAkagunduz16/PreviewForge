@@ -26,10 +26,10 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
   owned_paths: [apps/worker/src/build/, scripts/m4-runner/, infrastructure/m4-runner/, .github/workflows/m4-buildkit-acceptance.yml]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: Push the locally verified packaged-profile implementation, dispatch the hosted workflow, and require it to prove the child namespace, UID/GID maps, registry, BuildKit socket, and `buildctl debug workers` before calling startup fixed.
-  blocker: The packaged-profile implementation is locally verified but not yet present in a real hosted run. Run 34854326618 at `52492de` remains the latest external evidence and failed under the now-retired custom profile.
+  next_action: After a user-authorized push, dispatch the hosted workflow and require it to prove the child namespace, UID/GID maps, registry, socket authorization, and `buildctl debug workers` before calling startup fixed.
+  blocker: The supplied hosted screenshot shows the socket-existence gate passing but the normal runner's `buildctl debug workers` failing with `EACCES`; no hosted run ID was supplied, and this repair has not yet been exercised by a hosted run.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Hosted run 34854326618 captured exact `getsubids` execute denial and `newuidmap` missing-profile-transition denial under the retired custom profile. The canonical path now verifies Ubuntu's package-owned, loaded, userns-capable profile without mutation; starts `/usr/bin/rootlesskit` directly; and adds real child namespace/UID/GID-map gates before separate registry, socket, and worker checks. Shell syntax, packaged-profile parser/content checks, docs consistency, diff check, and full `pnpm check` pass locally; hosted validation is not-run.
+  evidence: The canonical path verifies Ubuntu's package-owned, loaded, userns-capable profile without mutation; starts `/usr/bin/rootlesskit` directly; adds real child namespace/UID/GID-map gates; and grants the normal runner group access only to the daemon-owned BuildKit socket after readiness. Shell syntax, socket authorization regression (mocked ownership commands over a real disposable Unix socket, including denied/different-group, chown-race, missing/non-socket/symlink, and private-file mode checks), packaged-profile parser/content checks, docs consistency, diff check, and full `pnpm check` pass locally; hosted validation is not-run.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
