@@ -59,14 +59,15 @@ to the daemon-owned BuildKit Unix socket after BuildKit completed its own `chown
 [34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit
 `e099ade` passed the RootlessKit namespace and UID/GID-map checks, registry readiness, socket
 authorization, normal-user `buildctl debug workers`, fixture build/push, immutable digest
-verification, and cleanup. The remaining M4 acceptance matrix is tracked in the active backlog.
+verification, and cleanup. The M4 acceptance matrix is now complete.
 
-## Open work / next action
+## Completion
 
-M4 is not complete. Implement the remaining real source/build/registry acceptance scenarios in the
-active backlog, then archive M4 only after public/private source, failure, timeout, duplicate
-delivery, stale-SHA, and credential-boundary evidence is recorded. Do not start M5 until that
-matrix passes.
+M4 is complete. The hosted matrix covers private and public fixtures, source authorization
+failure, BuildKit timeout classification, credential-free build inputs, stale-SHA supersession,
+immutable digest persistence, and cleanup. Duplicate delivery and retry idempotency remain backed
+by the completed M3 real Kafka/PostgreSQL acceptance, which exercises the same claimed deployment
+boundary consumed by the M4 pipeline. M5 may now begin from a fresh backlog item.
 
 ## Post-handoff update — source and registry acceptance
 
@@ -74,8 +75,10 @@ Hosted run [34864066506](https://github.com/EmirAkagunduz16/PreviewForge/actions
 at commit `eaee02b` passed the real private archive fetch with an installation bearer token,
 rootless BuildKit build and registry push, immutable digest persistence, and durable stale-SHA
 supersession with an outbox event. The workflow now builds the contracts and database packages
-before loading the integration test. The remaining M4 matrix is public-source behavior, failure
-and timeout handling, duplicate delivery/retry, and credential-boundary assertions.
+before loading the integration test. Hosted run [34864803550](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34864803550)
+at commit `a0c7f60` passed the expanded public/private source, source-failure, BuildKit-timeout,
+and credential-boundary scenarios. Together with the completed M3 Kafka/PostgreSQL duplicate and
+retry acceptance, this closes M4. The next milestone is Kubernetes preview reconciliation (M5).
 
 ## Related links
 

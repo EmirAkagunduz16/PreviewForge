@@ -30,14 +30,14 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Add desired-SHA guards and supersession tests.
 - Acceptance: broker or worker restarts do not lose intent or cause duplicate state transitions.
 
-## M4 — Rootless image build (active)
+## M4 — Rootless image build (complete)
 
 - Acquire source using a short-lived installation token outside the build trust zone.
 - Build with rootless BuildKit, stream redacted progress, enforce time/resource limits, and push to the local registry.
 - Resolve and persist immutable image digest.
 - Acceptance: a sample public and private repository build; credentials are absent from context, layers, and logs.
 
-## M5 — Kubernetes preview reconciliation (week 5)
+## M5 — Kubernetes preview reconciliation (active)
 
 - Create kind cluster bootstrap and a conformant Gateway controller.
 - Reconcile namespace policy, Deployment, Service, Secret, and HTTPRoute.

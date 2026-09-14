@@ -1,6 +1,7 @@
 # M4 execution plan — rootless image build
 
-Status: active
+Status: complete
+Completion evidence: [M4 hosted handoff](../reports/session-2026-09-14-m4-hosted-handoff.md) and [backlog archive](../backlog/archive.md)
 Owner: PreviewForge delivery
 Baseline before planning: `d6003c1ba84ba32d4e3e1443c111eebed3b19c8b`
 Sources: [delivery roadmap](../delivery/roadmap.md), [MVP scope](../product/mvp-scope.md), [system design](../architecture/system-design.md), [ADR 0004](../architecture/decisions/0004-rootless-buildkit.md), [threat model](../security/threat-model.md), [runner prerequisite](../infrastructure/m4-rootless-buildkit.md)
