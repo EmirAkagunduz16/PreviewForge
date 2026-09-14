@@ -11,7 +11,11 @@ import {
   type PrismaClient,
 } from "@previewforge/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { BuildKitAdapter } from "./build/buildkit-adapter.js";
+import {
+  BuildKitAdapter,
+  type BuildKitBuildInput,
+  BuildKitInfrastructureError,
+} from "./build/buildkit-adapter.js";
 import { runDeploymentBuildPipeline } from "./build/deployment-build-pipeline.js";
 import { materializeSourceContext } from "./build/source-context.js";
 import { GitHubSourceClient } from "./source/github-source.js";
@@ -38,14 +42,24 @@ type Fixture = {
   githubInstallationId: string;
 };
 
+type SourceMode = "PRIVATE" | "PUBLIC" | "UNAUTHORIZED" | "UPSTREAM";
+
+type BuildOverrides = {
+  sourceMode?: SourceMode;
+  buildkit?: Pick<BuildKitAdapter, "buildAndPush">;
+  claim?: boolean;
+};
+
 describe("M4 source, rootless BuildKit, registry, and desired-SHA boundary", () => {
   let prisma: PrismaClient;
   let server: Server;
   let apiBaseUrl: string;
   let archiveBytes: Uint8Array;
+  let sourceMode: SourceMode = "PRIVATE";
   const fixtures: Fixture[] = [];
   const pushed: Array<{ repository: string; digest: string }> = [];
   const authorizationHeaders: string[] = [];
+  const buildInputs: BuildKitBuildInput[] = [];
 
   beforeAll(async () => {
     prisma = createPrismaClient(databaseUrl);
@@ -54,6 +68,16 @@ describe("M4 source, rootless BuildKit, registry, and desired-SHA boundary", () 
     server = createServer((request, response) => {
       const authorization = request.headers.authorization;
       if (authorization !== undefined) authorizationHeaders.push(authorization);
+      if (sourceMode === "UNAUTHORIZED") {
+        response.writeHead(401);
+        response.end();
+        return;
+      }
+      if (sourceMode === "UPSTREAM") {
+        response.writeHead(503);
+        response.end();
+        return;
+      }
       response.writeHead(200, {
         "content-type": "application/gzip",
         "content-length": archiveBytes.byteLength,
@@ -122,16 +146,73 @@ describe("M4 source, rootless BuildKit, registry, and desired-SHA boundary", () 
     );
   }, 240_000);
 
-  async function runBuild(fixture: Fixture, replacementSha?: string) {
+  it("builds a public fixture without crossing credentials into the build boundary", async () => {
+    const fixture = await createFixture(prisma, "d".repeat(40));
+    fixtures.push(fixture);
+    const result = await runBuild(fixture, undefined, { sourceMode: "PUBLIC" });
+
+    expect(result.kind).toBe("DEPLOYING");
+    const buildInput = buildInputs.at(-1);
+    expect(buildInput).toBeDefined();
+    expect(buildInput).not.toHaveProperty("token");
+    expect(JSON.stringify(buildInput)).not.toContain("installation-secret");
+  }, 240_000);
+
+  it("records unauthorized source access as a durable non-retryable failure", async () => {
+    const fixture = await createFixture(prisma, "e".repeat(40));
+    fixtures.push(fixture);
+    const result = await runBuild(fixture, undefined, { sourceMode: "UNAUTHORIZED" });
+
+    expect(result).toEqual({ kind: "FAILED", stage: "SOURCE", code: "SOURCE_UNAUTHORIZED" });
+    expect(
+      await prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
+    ).toMatchObject({
+      status: "FAILED",
+      failureStage: "SOURCE",
+      failureCode: "SOURCE_UNAUTHORIZED",
+      failureRetryable: false,
+    });
+  }, 240_000);
+
+  it("records a BuildKit timeout as a retryable durable failure", async () => {
+    const fixture = await createFixture(prisma, "f".repeat(40));
+    fixtures.push(fixture);
+    const result = await runBuild(fixture, undefined, {
+      buildkit: {
+        buildAndPush: async () => {
+          throw new BuildKitInfrastructureError("BUILDKIT_TIMEOUT", true);
+        },
+      },
+    });
+
+    expect(result).toEqual({ kind: "FAILED", stage: "PUSHING", code: "BUILDKIT_TIMEOUT" });
+    expect(
+      await prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
+    ).toMatchObject({
+      status: "FAILED",
+      failureStage: "PUSHING",
+      failureCode: "BUILDKIT_TIMEOUT",
+      failureRetryable: true,
+    });
+  }, 240_000);
+
+  async function runBuild(
+    fixture: Fixture,
+    replacementSha?: string,
+    overrides: BuildOverrides = {},
+  ) {
+    sourceMode = overrides.sourceMode ?? "PRIVATE";
     const deployments = new DeploymentRepository(prisma);
-    await expect(
-      deployments.transition({
-        deploymentId: fixture.deploymentId,
-        expectedStatus: "QUEUED",
-        to: "CLONING",
-        expectedDesiredSha: fixture.commitSha,
-      }),
-    ).resolves.toMatchObject({ applied: true });
+    if (overrides.claim !== false) {
+      await expect(
+        deployments.transition({
+          deploymentId: fixture.deploymentId,
+          expectedStatus: "QUEUED",
+          to: "CLONING",
+          expectedDesiredSha: fixture.commitSha,
+        }),
+      ).resolves.toMatchObject({ applied: true });
+    }
 
     const sourceClient = new GitHubSourceClient({
       apiBaseUrl,
@@ -141,8 +222,11 @@ describe("M4 source, rootless BuildKit, registry, and desired-SHA boundary", () 
     const contextRoot = await mkdtemp(join(tmpdir(), "previewforge-m4-context-root-"));
     const buildkit = {
       buildAndPush: async (input: Parameters<BuildKitAdapter["buildAndPush"]>[0]) => {
-        const result = await adapter.buildAndPush(input);
-        pushed.push({ repository: imageRepository(fixture), digest: result.digest });
+        buildInputs.push(input);
+        const result = await (overrides.buildkit ?? adapter).buildAndPush(input);
+        if (overrides.buildkit === undefined) {
+          pushed.push({ repository: imageRepository(fixture), digest: result.digest });
+        }
         if (replacementSha !== undefined) {
           await prisma.previewEnvironment.update({
             where: { id: fixture.environmentId },
@@ -175,6 +259,7 @@ describe("M4 source, rootless BuildKit, registry, and desired-SHA boundary", () 
       );
     } finally {
       await rm(contextRoot, { recursive: true, force: true });
+      sourceMode = "PRIVATE";
     }
   }
 
