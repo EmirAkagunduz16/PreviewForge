@@ -89,6 +89,24 @@ jobs:
           sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
           exit 1
 
+      - name: Diagnose rootless startup failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          echo '--- kernel AppArmor/rootlesskit records (journalctl) ---'
+          sudo journalctl -k --no-pager 2>&1 \
+            | grep -Ei 'apparmor="DENIED"|rootlesskit|previewforge-rootlesskit' \
+            | tail -200 || true
+          echo '--- kernel AppArmor/rootlesskit records (dmesg) ---'
+          sudo dmesg --color=never 2>&1 \
+            | grep -Ei 'apparmor="DENIED"|rootlesskit|previewforge-rootlesskit' \
+            | tail -200 || true
+          echo '--- rootless stack log ---'
+          sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
+          echo '--- rootless process state ---'
+          sudo ps -eo pid,user,stat,args | grep -E 'rootlesskit|buildkitd|registry' | grep -v grep || true
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2

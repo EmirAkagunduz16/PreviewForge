@@ -73,5 +73,26 @@ env -i "${clean_env[@]}" nohup rootlesskit \
       --root "$BUILDKIT_ROOT"
   ' \
   >"$log_path" 2>&1 &
-echo $! >"$pid_path"
+stack_pid=$!
+echo "$stack_pid" >"$pid_path"
+
+# RootlessKit can fail before either child daemon binds a socket. Detect that
+# short-lived parent here so the workflow reports the real startup error rather
+# than waiting for the registry smoke-check to time out.
+for _ in {1..20}; do
+  if ! kill -0 "$stack_pid" 2>/dev/null; then
+    echo 'rootless BuildKit + registry exited during startup' >&2
+    cat "$log_path" >&2 || true
+    rm -f "$pid_path"
+    exit 1
+  fi
+  stack_state="$(ps -o stat= -p "$stack_pid" 2>/dev/null || true)"
+  if [[ "$stack_state" == Z* ]]; then
+    echo 'rootless BuildKit + registry became a zombie during startup' >&2
+    cat "$log_path" >&2 || true
+    rm -f "$pid_path"
+    exit 1
+  fi
+  sleep 0.1
+done
 echo "rootless BuildKit + registry started; socket=$socket_path registry=127.0.0.1:5000"

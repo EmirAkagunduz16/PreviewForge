@@ -76,12 +76,15 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    mode.
 8. Smoke-check `http://127.0.0.1:5000/v2/` and
    `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
-9. Install pnpm/Node, install the locked dependencies, and run the acceptance client as the
+9. If startup or smoke checks fail, the workflow prints filtered kernel AppArmor/rootlesskit
+   records from both `journalctl -k` and `dmesg`, plus the stack log and process state. Profile
+   permissions are not widened based on a smoke timeout alone.
+10. Install pnpm/Node, install the locked dependencies, and run the acceptance client as the
    GitHub checkout user. The client uses only the Unix socket; the rootless daemon remains a
    separate `previewforge-buildkit` process and its environment is an explicit credential-free
    allowlist. The socket parent grants only execute access to the checkout user's primary group;
    no repository or `.git` permissions are widened.
-10. Use these fixed acceptance values:
+11. Use these fixed acceptance values:
 
    ```text
    BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock
@@ -89,7 +92,7 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    REGISTRY_PROTOCOL=http
    ```
 
-11. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
+12. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
 
 The workflow's only external inputs are GitHub's hosted runner and the public release URLs in the
 version manifest. It does not request self-hosted registration or repository secrets.
