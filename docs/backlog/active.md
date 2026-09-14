@@ -19,18 +19,18 @@ Only unfinished work belongs here. Update this file before starting work and bef
   evidence_commit: not-run
 
 - id: M4-BUILDKIT
-  status: blocked
+  status: needs-review
   title: Execute Dockerfiles through a dedicated rootless BuildKit adapter
   owner: root
   depends_on: [M4-SOURCE]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
-  owned_paths: [apps/worker/src/build/, scripts/m4-runner/, infrastructure/m4-runner/, .github/workflows/m4-buildkit-acceptance.yml]
+  owned_paths: [apps/worker/src/build/, scripts/m4-runner/, infrastructure/m4-runner/, .github/workflows/m4-buildkit-acceptance.yml, docs/infrastructure/m4-rootless-buildkit.md, docs/backlog/active.md]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: After a user-authorized push, dispatch the hosted workflow and require it to prove the child namespace, UID/GID maps, registry, socket authorization, and `buildctl debug workers` before calling startup fixed.
-  blocker: The supplied hosted screenshot shows the socket-existence gate passing but the normal runner's `buildctl debug workers` failing with `EACCES`; no hosted run ID was supplied, and this repair has not yet been exercised by a hosted run.
+  next_action: Root-review the BuildKit adapter boundary, then connect the materialized source context to the deployment build orchestration.
+  blocker: none
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: The canonical path verifies Ubuntu's package-owned, loaded, userns-capable profile without mutation; starts `/usr/bin/rootlesskit` directly; adds real child namespace/UID/GID-map gates; and grants the normal runner group access only to the daemon-owned BuildKit socket after readiness. Shell syntax, socket authorization regression (mocked ownership commands over a real disposable Unix socket, including denied/different-group, chown-race, missing/non-socket/symlink, and private-file mode checks), packaged-profile parser/content checks, docs consistency, diff check, and full `pnpm check` pass locally; hosted validation is not-run.
-  evidence_commit: not-run
+  evidence: The canonical path verifies Ubuntu's package-owned, loaded, userns-capable profile without mutation; starts `/usr/bin/rootlesskit` directly; adds real child namespace/UID/GID-map gates; and grants the normal runner group access only to the daemon-owned BuildKit socket after readiness. Shell syntax, socket authorization regression (mocked ownership commands over a real disposable Unix socket, including denied/different-group, chown-race, missing/non-socket/symlink, and private-file mode checks), packaged-profile parser/content checks, docs consistency, diff check, and full `pnpm check` pass locally. Hosted run [34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit `e099ade` passed namespace/maps, registry readiness, socket authorization, normal-user `buildctl debug workers`, fixture build, registry push, immutable digest verification, and cleanup.
+  evidence_commit: e099ade
 
 - id: M4-REGISTRY
   status: in-progress
@@ -46,16 +46,16 @@ Only unfinished work belongs here. Update this file before starting work and bef
   evidence_commit: not-run
 
 - id: M4-ACCEPTANCE
-  status: blocked
+  status: in-progress
   title: Prove source, rootless build, registry, failure, timeout, and secret-boundary behavior end to end
   owner: root
   depends_on: [M4-SOURCE, M4-BUILDKIT, M4-REGISTRY]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
   owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
-  next_action: After the packaged RootlessKit profile path passes hosted startup steps 1–5, require the fixture build, registry push, and immutable `sha256` digest verification to pass in the same real workflow.
-  blocker: The custom profile path failed before rootless namespace creation in hosted run 34854326618. Keep the slice blocked until all eight ordered hosted checks pass in one workflow run.
+  next_action: Pursue the remaining public/private source, failure, timeout, duplicate-delivery, and credential-boundary acceptance coverage; do not mark this slice complete until the remaining matrix passes.
+  blocker: none
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; full `pnpm check` passes locally with database 78/78, API 1/1, and worker 5/5 integration tests. Hosted run 34854326618 failed before ordered acceptance step 1 under the retired custom profile; no real run has yet proved child namespace, UID/GID maps, registry, BuildKit socket/workers, fixture build, push, and digest in one pass.
+  evidence: Harness added; full `pnpm check` passes locally with database 78/78, API 1/1, and worker 5/5 integration tests. Hosted run [34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit `e099ade` proved rootless namespace/maps, registry readiness, BuildKit socket authorization, normal-user workers, one fixture build, registry push, immutable digest verification, and cleanup in one run. The remaining public/private source, failure, timeout, duplicate-delivery, and credential-boundary acceptance matrix has not been run.
   evidence_commit: not-run
 ```
