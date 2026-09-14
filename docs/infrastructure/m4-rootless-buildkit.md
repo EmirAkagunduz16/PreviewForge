@@ -24,8 +24,22 @@ and the [Ubuntu 24.04 image inventory](https://github.com/actions/runner-images/
 Before provisioning, the workflow requires Ubuntu 24.04, passwordless `sudo`, AppArmor enabled,
 and `kernel.apparmor_restrict_unprivileged_userns=1`. Provisioning then installs the named
 `previewforge-rootlesskit` profile and creates the dedicated
-`previewforge-buildkit:100000:65536` subuid/subgid ranges. The prerequisite script must pass with
-`--profile-test`; a mismatch is reported as an infrastructure blocker.
+`previewforge-buildkit:100000:65536` subuid/subgid ranges. The profile is loaded only through an
+explicit `apparmor_parser -r /etc/apparmor.d/previewforge-rootlesskit` call. The provisioning
+path deliberately does not call `aa-enforce`: on Ubuntu 24.04 hosted images that helper may scan
+unrelated `passt`/`pasta` mount profiles and fail with a `runbindable` parse error even when the
+PreviewForge profile is valid. The prerequisite script must pass with `--profile-test`; a mismatch
+is reported as an infrastructure blocker.
+
+Profile verification has two separate fail-closed stages:
+
+1. `verify-apparmor-profile.sh --load` validates and loads the target profile, then checks that
+   `previewforge-rootlesskit (enforce)` is present in the kernel profile set.
+2. `check-prerequisites.sh --profile-test` repeats the active/enforce check using
+   `/sys/kernel/security/apparmor/profiles` (with a filtered `aa-status` fallback), without
+   changing any profile state.
+
+No unrelated system profile is patched, disabled, or switched between complain and enforce mode.
 
 The workflow never sets `kernel.apparmor_restrict_unprivileged_userns=0`, uses `--privileged`,
 `apparmor=unconfined`, `seccomp=unconfined`, host networking, a Docker socket, or a BuildKit TCP

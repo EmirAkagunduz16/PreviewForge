@@ -25,7 +25,7 @@ else
   failures=$((failures + 1))
 fi
 
-for command_name in rootlesskit newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl registry aa-status aa-enforce; do
+for command_name in rootlesskit newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl registry aa-status apparmor_parser; do
   check_command "$command_name"
 done
 
@@ -54,10 +54,7 @@ if [[ "$sysctl_value" == 0 ]]; then
 fi
 
 if [[ "$profile_test" == 1 ]]; then
-  aa-status 2>/dev/null | rg -q 'previewforge-rootlesskit' || {
-    printf 'previewforge-rootlesskit AppArmor profile is not active\n' >&2
-    failures=$((failures + 1))
-  }
+  ./scripts/m4-runner/verify-apparmor-profile.sh --check || failures=$((failures + 1))
   for docker_socket in /var/run/docker.sock /run/docker.sock; do
     if [[ -S "$docker_socket" ]] && {
       sudo -u previewforge-buildkit test -r "$docker_socket" ||

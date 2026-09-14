@@ -42,7 +42,6 @@ ensure_subid /etc/subgid
 install -D -o root -g root -m 0644 \
   infrastructure/m4-runner/apparmor/previewforge-rootlesskit \
   /etc/apparmor.d/previewforge-rootlesskit
-apparmor_parser -r /etc/apparmor.d/previewforge-rootlesskit
-aa-enforce previewforge-rootlesskit
+./scripts/m4-runner/verify-apparmor-profile.sh --load
 
 echo 'Provisioning complete. Do not register the runner until check-prerequisites.sh passes.'

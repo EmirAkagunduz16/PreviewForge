@@ -129,6 +129,27 @@ build/registry acceptance matrix. If the hosted image fails the AppArmor preflig
 `--profile-test`, report it as an infrastructure blocker rather than widening security policy.
 Do not weaken the build by mounting a Docker socket or enabling insecure/privileged entitlements.
 
+## Hosted AppArmor provisioning finding
+
+The first GitHub-hosted `ubuntu-24.04` run passed the baseline checks (`Ubuntu 24.04.5`,
+`kernel.apparmor_restrict_unprivileged_userns=1`, and AppArmor enabled) but failed during the
+provisioning call to `aa-enforce previewforge-rootlesskit` with:
+
+```text
+ERROR: Operation {'runbindable'} cannot have a source. Source = AARE('/')
+```
+
+The target profile is already loaded explicitly by the preceding `apparmor_parser -r` command;
+the failing `aa-enforce` helper performs a broader hosted-image profile scan and can parse an
+unrelated `passt`/`pasta` mount profile. The failure is therefore isolated to the helper's
+unrelated-profile scan rather than used as evidence that the PreviewForge profile is invalid.
+
+The provisioning path now removes `aa-enforce` entirely. It loads only the target profile with
+`apparmor_parser -r`, then verifies the target's kernel state is `(enforce)`. The prerequisite
+check repeats that read-only active/enforce verification and fails closed if the target profile is
+missing or in another mode. No global AppArmor/sysctl change or unrelated profile mutation is
+performed.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)

@@ -58,9 +58,15 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    infrastructure blocker.
 3. Run `sudo ./scripts/m4-runner/provision-ubuntu.sh`, which creates the dedicated
    `previewforge-buildkit` account, its subuid/subgid range, and the named AppArmor profile.
+   Provisioning loads only `/etc/apparmor.d/previewforge-rootlesskit` with an explicit
+   `apparmor_parser -r` call, then verifies that this target profile is active in enforce mode.
+   It does not invoke `aa-enforce`, whose broad profile scan can parse unrelated hosted-image
+   profiles such as `passt`/`pasta` and fail before the target profile is checked.
 4. Source the immutable versions/checksums in `versions.env` and install BuildKit plus the
    Distribution registry with the checksum-verifying installers. No `latest` tag is used.
-5. Run `sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test`.
+5. Run `sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test`. This performs a separate
+   fail-closed active/enforce check through `/sys/kernel/security/apparmor/profiles` (with an
+   `aa-status` fallback) and does not mutate unrelated AppArmor profiles.
 6. Start the registry and BuildKit stack as `previewforge-buildkit`.
 7. Smoke-check `http://127.0.0.1:5000/v2/` and
    `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
