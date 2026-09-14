@@ -68,6 +68,15 @@ active backlog, then archive M4 only after public/private source, failure, timeo
 delivery, stale-SHA, and credential-boundary evidence is recorded. Do not start M5 until that
 matrix passes.
 
+## Post-handoff update — source and registry acceptance
+
+Hosted run [34864066506](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34864066506)
+at commit `eaee02b` passed the real private archive fetch with an installation bearer token,
+rootless BuildKit build and registry push, immutable digest persistence, and durable stale-SHA
+supersession with an outbox event. The workflow now builds the contracts and database packages
+before loading the integration test. The remaining M4 matrix is public-source behavior, failure
+and timeout handling, duplicate delivery/retry, and credential-boundary assertions.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)

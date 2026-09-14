@@ -38,12 +38,12 @@ Only unfinished work belongs here. Update this file before starting work and bef
   owner: root
   depends_on: [M4-BUILDKIT]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-REGISTRY
-  owned_paths: [apps/worker/src/build/, apps/worker/src/deployment-consumer.ts, packages/database/src/deployment-repository.ts]
+  owned_paths: [apps/worker/src/build/, apps/worker/src/deployment-consumer.ts, packages/database/src/deployment-repository.ts, .github/workflows/m4-buildkit-acceptance.yml]
   verification_command: DATABASE_URL=<local redacted value> KAFKA_BROKERS=localhost:59092 BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm --filter @previewforge/worker test:acceptance:m4
-  next_action: Add and run the real Kafka/PostgreSQL/BuildKit registry acceptance covering duplicate delivery, retry, stale SHA, and digest persistence in apps/worker/src/m4.integration.test.ts.
+  next_action: Extend the hosted acceptance with duplicate delivery, retry, timeout, and credential-boundary cases before archiving M4.
   acceptance: Only the current desired commit can persist an OCI digest; stale builds are superseded and mutable tags never become deployment identity.
-  evidence: Runtime wiring now constructs ProjectRepository, GitHub installation-token provider, source client, BuildKit adapter, and the claimed-event pipeline when the complete M4 config is present; incomplete M4 config fails closed. DeploymentRepository validates and persists only `sha256:<64 hex>` digests on the desired-SHA-guarded `PUSHING -> DEPLOYING` transition, and `supersedeIfStale` now durably records active stale work with an outbox event. PostgreSQL integration suite passed 79 tests; worker unit suite passed 12 files/106 tests; targeted real Kafka/PostgreSQL claim-hook redelivery test passed. The new M4 real source/BuildKit/registry integration test is added but awaits hosted rootless execution.
-  evidence_commit: not-run
+  evidence: Runtime wiring now constructs ProjectRepository, GitHub installation-token provider, source client, BuildKit adapter, and the claimed-event pipeline when the complete M4 config is present; incomplete M4 config fails closed. DeploymentRepository validates and persists only `sha256:<64 hex>` digests on the desired-SHA-guarded `PUSHING -> DEPLOYING` transition, and `supersedeIfStale` now durably records active stale work with an outbox event. PostgreSQL integration suite passed 79 tests; worker unit suite passed 12 files/106 tests; hosted run [34864066506](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34864066506) passed the real private archive, rootless BuildKit push, digest persistence, and stale-SHA supersession scenarios.
+  evidence_commit: eaee02b
 
 - id: M4-ACCEPTANCE
   status: in-progress
@@ -51,11 +51,11 @@ Only unfinished work belongs here. Update this file before starting work and bef
   owner: root
   depends_on: [M4-SOURCE, M4-BUILDKIT, M4-REGISTRY]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
-  owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
+  owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, .github/workflows/m4-buildkit-acceptance.yml, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
   next_action: Extend apps/worker/src/m4.integration.test.ts with public/private source, failure, timeout, duplicate-delivery, and credential-boundary scenarios; archive M4 only after the complete matrix passes.
   blocker: none
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; full local `pnpm check` passes with database 79/79, API 1/1, and worker 5/5 integration tests. Hosted run [34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit `e099ade` proved rootless namespace/maps, registry readiness, BuildKit socket authorization, normal-user workers, one fixture build, registry push, immutable digest verification, and cleanup in one run. The expanded M4 source/BuildKit/registry integration test and remaining public/private source, failure, timeout, duplicate-delivery, and credential-boundary matrix await the next hosted run.
-  evidence_commit: not-run
+  evidence: Harness added; full local `pnpm check` passes with database 79/79, API 1/1, and worker 5/5 integration tests. Hosted run [34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit `e099ade` proved rootless namespace/maps, registry readiness, BuildKit socket authorization, normal-user workers, one fixture build, registry push, immutable digest verification, and cleanup. Hosted run [34864066506](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34864066506) additionally passed the private source, real BuildKit/registry, digest persistence, and stale-SHA supersession cases. Public source, failure, timeout, duplicate-delivery, and credential-boundary scenarios remain before archive.
+  evidence_commit: eaee02b
 ```
