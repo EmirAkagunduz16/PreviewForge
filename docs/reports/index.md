@@ -12,3 +12,4 @@
 | RPT-2026-09-13-context-engineering | decision | verified | [context engineering decision](decision-2026-09-13-context-engineering.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20Context%20Engineering.md) |
 | RPT-2026-09-14-session-m3-handoff | session | verified | [M3 handoff report](session-2026-09-14-m3-handoff.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-14%20M3%20Handoff.md) |
 | RPT-2026-09-14-m4-rootless-host-prerequisite | incident | verified | [M4 rootless host prerequisite](incident-2026-09-14-m4-rootless-host-prerequisite.md) | pending |
+| RPT-2026-09-14-session-m4-hosted-handoff | session | verified | [M4 hosted acceptance handoff](session-2026-09-14-m4-hosted-handoff.md) | pending |

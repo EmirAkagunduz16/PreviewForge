@@ -209,6 +209,22 @@ directory with mode `0700`, and the path is already inside the narrow runtime al
 script rejects a symlink or unexpected ownership/mode before launch. No `/tmp/**` rule or other
 profile expansion was added.
 
+Hosted run `34850233883` at commit `3126055` verified that this explicit state directory removed
+the `/tmp/rootlesskit*` failure. RootlessKit advanced to UID/GID-map computation and then failed
+closed. The diagnostic step captured the next exact AppArmor denials:
+
+```text
+operation="open" name="/etc/nsswitch.conf" requested_mask="r"
+operation="open" name="/etc/passwd" requested_mask="r"
+operation="open" name="/var/tmp/previewforge-buildkit/" requested_mask="r"
+```
+
+The first two reads are needed by RootlessKit's numeric-UID user lookup; the third is the runtime
+directory itself rather than its already-allowed descendants. The next change must add only these
+proven reads, re-run the hosted workflow, and inspect any subsequent kernel denial before further
+profile adjustment. M4 remains blocked; no daemon smoke check, build, push, or digest verification
+has passed yet.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)

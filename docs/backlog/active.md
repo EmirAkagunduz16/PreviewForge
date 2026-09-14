@@ -26,10 +26,10 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
   owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: Push the RootlessKit state-directory fix and rerun the GitHub-hosted `ubuntu-24.04` workflow; verify stack smoke checks before accepting the real `test:build:integration` result.
-  blocker: Hosted baseline, provisioning, binary installation, profile verification, and config staging pass. The latest run then failed because RootlessKit's omitted `--state-dir` defaulted to a denied random `/tmp/rootlesskit*` path. The fix stages a private runtime state directory and awaits hosted verification; no host policy change is being performed implicitly.
+  next_action: Add only the AppArmor reads proven by run 34850233883 (`/etc/nsswitch.conf`, `/etc/passwd`, and the runtime root directory itself), rerun the hosted workflow, and inspect any subsequent exact denial before changing the profile again.
+  blocker: Hosted baseline, provisioning, pinned binary installation, profile verification, config staging, explicit confined-profile selection, and private state-directory selection pass. RootlessKit now reaches UID/GID-map setup but AppArmor denies reads of `/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/`; no broader permission change is authorized or implied.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted logs proved the confined `aa-exec` profile reaches RootlessKit state initialization, then reported `mkdir /tmp/rootlesskit*: permission denied`. The start command now pins `/var/tmp/previewforge-buildkit/rootlesskit-state`, staged as `previewforge-buildkit` mode `0700`, without expanding AppArmor permissions. Clean PostgreSQL/Kafka `pnpm check`, AppArmor parser dry-run, shell syntax, docs, and diff checks passed; hosted build/push remains not-run after this fix.
+  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted run 34850233883 at `3126055` proved the confined `aa-exec` profile and explicit `/var/tmp/previewforge-buildkit/rootlesskit-state` advance past the earlier exec/state failures. Its kernel log records exact AppArmor denials for `/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/` during UID lookup. Clean PostgreSQL/Kafka `pnpm check`, AppArmor parser dry-run, shell syntax, docs, and diff checks passed; build/push remains not-run.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
@@ -53,9 +53,9 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
   owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
-  next_action: Rerun `.github/workflows/m4-buildkit-acceptance.yml` after the staged RootlessKit state-directory commit and require smoke-check plus build → push → immutable digest verification to pass.
-  blocker: Hosted kernel/AppArmor baseline and the confined profile now pass, but the rootless stack has not yet been re-run with its private explicit state directory. Keep the slice blocked until the complete workflow is green.
+  next_action: Resolve only the three exact AppArmor read denials from hosted run 34850233883, then require smoke-check plus build → push → immutable digest verification to pass.
+  blocker: Hosted kernel/AppArmor baseline and the confined profile pass, but RootlessKit is stopped during UID/GID-map setup by three read denials. Keep the slice blocked until the complete workflow is green.
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, and staging, but no run has yet reached and passed the real build/push/digest oracle.
+  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, staging, explicit confined-profile selection, and private state-directory selection. Run 34850233883 exposed the next exact AppArmor read boundary before daemon readiness; no run has yet reached the real build/push/digest oracle.
   evidence_commit: not-run
 ```
