@@ -15,6 +15,7 @@ registry_source="$repo_dir/infrastructure/m4-runner/registry/config.yml"
 buildkit_source="$repo_dir/infrastructure/m4-runner/buildkitd.toml"
 registry_target="$root_dir/registry-config.yml"
 buildkit_target="$root_dir/buildkitd.toml"
+state_target="$root_dir/rootlesskit-state"
 
 [[ "$client_group" =~ ^[A-Za-z0-9_.-]+$ ]] || {
   echo 'BUILDKIT_CLIENT_GROUP contains unsupported characters' >&2
@@ -40,6 +41,11 @@ getent group "$client_group" >/dev/null || {
 install -d -o "$runtime_user" -g "$runtime_user" -m 0700 "$root_dir"
 install -o "$runtime_user" -g "$runtime_user" -m 0600 "$registry_source" "$registry_target"
 install -o "$runtime_user" -g "$runtime_user" -m 0600 "$buildkit_source" "$buildkit_target"
+[[ ! -L "$state_target" ]] || {
+  echo "RootlessKit state directory must not be a symlink: $state_target" >&2
+  exit 1
+}
+install -d -o "$runtime_user" -g "$runtime_user" -m 0700 "$state_target"
 
 if [[ "$client_group" == "$runtime_group" ]]; then
   chmod 0700 "$root_dir"
@@ -60,6 +66,10 @@ for config in "$registry_target" "$buildkit_target"; do
     exit 1
   }
 done
+[[ "$(stat -c '%U:%G:%a' "$state_target")" == "$runtime_user:$runtime_group:700" ]] || {
+  echo "RootlessKit state directory ownership/mode is invalid: $state_target" >&2
+  exit 1
+}
 
 echo "Staged rootless runtime configs under $root_dir (owner=$runtime_user mode=0600)"
 if [[ "$client_group" != "$runtime_group" ]]; then

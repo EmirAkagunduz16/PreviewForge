@@ -70,12 +70,15 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
 6. Stage the canonical registry and BuildKit configs with
    `sudo ./scripts/m4-runner/stage-rootless-runtime-config.sh`. The generated files live under
    `/var/tmp/previewforge-buildkit/`, are owned by `previewforge-buildkit`, and are mode `0600`.
-   The checkout is not readable by the restricted daemon user.
+   The same root-only boundary stages `rootlesskit-state/` for the dedicated user with mode
+   `0700`. The checkout is not readable by the restricted daemon user.
 7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
    the staged runtime files and fails closed when either is missing or has the wrong ownership or
    mode. It enters the named confined AppArmor profile explicitly with `aa-exec`; the profile has
    no automatic executable attachment, so it does not conflict with Ubuntu's packaged
-   `/usr/bin/rootlesskit` attachment.
+   `/usr/bin/rootlesskit` attachment. It also pins RootlessKit's state directory to
+   `/var/tmp/previewforge-buildkit/rootlesskit-state` with mode `0700`. RootlessKit therefore does
+   not fall back to a random `/tmp/rootlesskit*` path outside the profile's runtime allowlist.
 8. Smoke-check `http://127.0.0.1:5000/v2/` and
    `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
 9. If startup or smoke checks fail, the workflow prints filtered kernel AppArmor/rootlesskit

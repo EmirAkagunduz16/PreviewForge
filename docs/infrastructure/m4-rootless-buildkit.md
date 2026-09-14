@@ -74,6 +74,15 @@ Both generated files are owned by `previewforge-buildkit:previewforge-buildkit` 
 fails closed if either artifact is absent or has different ownership/mode. The source templates
 remain unchanged in the repository.
 
+RootlessKit's state directory is explicitly
+`/var/tmp/previewforge-buildkit/rootlesskit-state` and is owned by the dedicated user with mode
+`0700`. The root-only staging step creates it before privilege drop; the start script rejects a
+missing directory, symlink, or ownership/mode mismatch. Without `--state-dir`, RootlessKit creates
+a random `/tmp/rootlesskit*` directory; that fallback is intentionally unavailable to the confined
+profile. Keeping the state under the existing runtime allowlist avoids adding broad `/tmp` write
+access and keeps RootlessKit's API socket and namespace metadata inaccessible to the workflow
+client.
+
 The daemon stays rootless, while the BuildKit test client runs as the normal GitHub checkout user
 so it can read `node_modules` and the test source without broadening repository or `.git`
 permissions. The runtime directory is setgid with execute-only access for that user's primary
@@ -90,6 +99,7 @@ GitHub-hosted job process (host namespace)
   |-- 127.0.0.1:5000 --RootlessKit builtin port-forward-->
   v
 RootlessKit --net=slirp4netns --disable-host-loopback
+  |  --state-dir=/var/tmp/previewforge-buildkit/rootlesskit-state
   |-- registry 127.0.0.1:5000       (inside namespace, HTTP)
   `-- buildkitd Unix socket          (same namespace/filesystem)
           `-- pushes to 127.0.0.1:5000

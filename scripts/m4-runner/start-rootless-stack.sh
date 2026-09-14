@@ -16,6 +16,7 @@ buildkit_config="${root_dir}/buildkitd.toml"
 socket_path="${BUILDKIT_SOCKET:-${root_dir}/buildkitd.sock}"
 log_path="${BUILDKIT_LOG:-${root_dir}/rootless-stack.log}"
 pid_path="${BUILDKIT_PID:-${root_dir}/rootless-stack.pid}"
+state_dir="${root_dir}/rootlesskit-state"
 if [[ ! -r "$registry_config" ]]; then
   echo "registry config is not readable: $registry_config" >&2
   exit 1
@@ -34,6 +35,18 @@ if [[ "$(stat -c '%U:%G:%a' "$registry_config")" != 'previewforge-buildkit:previ
   exit 1
 fi
 mkdir -p "$(dirname "$socket_path")" "$(dirname "$log_path")"
+if [[ ! -d "$state_dir" ]]; then
+  echo "RootlessKit state directory was not staged: $state_dir" >&2
+  exit 1
+fi
+if [[ -L "$state_dir" ]]; then
+  echo "RootlessKit state directory must not be a symlink: $state_dir" >&2
+  exit 1
+fi
+if [[ "$(stat -c '%U:%G:%a' "$state_dir")" != 'previewforge-buildkit:previewforge-buildkit:700' ]]; then
+  echo 'RootlessKit state directory must be owned by previewforge-buildkit with mode 0700' >&2
+  exit 1
+fi
 umask 0007
 
 # Export only the paths needed by the child shell. The registry and BuildKit
@@ -58,6 +71,7 @@ clean_env=(
   "BUILDKIT_ROOT=$root_dir"
 )
 env -i "${clean_env[@]}" nohup aa-exec -p previewforge-rootlesskit -- rootlesskit \
+  --state-dir "$state_dir" \
   --net=slirp4netns \
   --disable-host-loopback \
   --copy-up=/etc \

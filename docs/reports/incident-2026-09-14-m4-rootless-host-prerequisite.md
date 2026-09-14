@@ -192,6 +192,23 @@ confined profile drops its automatic executable attachment and is selected expli
 `aa-exec -p previewforge-rootlesskit`. This preserves its existing `userns`, capability, filesystem,
 socket, and credential-deny rules without adding broad `/proc` execution access.
 
+## RootlessKit state-directory confinement
+
+The following hosted run proved that explicit confined-profile selection passed the earlier
+`/proc/self/exe` stage, then failed immediately with:
+
+```text
+[rootlesskit:parent] error: creating a state directory:
+mkdir /tmp/rootlesskit1947753381: permission denied
+```
+
+This is RootlessKit's documented fallback when `--state-dir` is omitted, not evidence that the
+profile needs general `/tmp` write access. The canonical start command now supplies
+`--state-dir /var/tmp/previewforge-buildkit/rootlesskit-state`. The dedicated user owns that
+directory with mode `0700`, and the path is already inside the narrow runtime allowlist. The start
+script rejects a symlink or unexpected ownership/mode before launch. No `/tmp/**` rule or other
+profile expansion was added.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)

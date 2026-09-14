@@ -26,10 +26,10 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
   owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: Dispatch the GitHub-hosted `ubuntu-24.04` workflow, let its fail-closed AppArmor preflight and provisioning complete, then run the new `test:build:integration` against the shared-namespace Unix socket and loopback registry.
-  blocker: Local host has no `buildctl`, `buildkitd`, `slirp4netns`, or `fuse-overlayfs`, has no dedicated previewforge subuid/subgid entries, and keeps `apparmor_restrict_unprivileged_userns=1`; the pinned rootless image cannot start under this policy. The hosted workflow must independently prove that its Ubuntu/AppArmor kernel permits the narrow profile; no host policy change is being performed implicitly.
+  next_action: Push the RootlessKit state-directory fix and rerun the GitHub-hosted `ubuntu-24.04` workflow; verify stack smoke checks before accepting the real `test:build:integration` result.
+  blocker: Hosted baseline, provisioning, binary installation, profile verification, and config staging pass. The latest run then failed because RootlessKit's omitted `--state-dir` defaulted to a denied random `/tmp/rootlesskit*` path. The fix stages a private runtime state directory and awaits hosted verification; no host policy change is being performed implicitly.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. The opt-in real test was re-run locally and failed closed as `BUILDKIT_UNAVAILABLE` because `buildctl`/rootless BuildKit is unavailable; no build or push is claimed. Full repository checks passed before the hosted migration; the GitHub-hosted `ubuntu-24.04` workflow now owns provisioning, preflight, smoke checks, real acceptance, and always-cleanup. The canonical topology uses `unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and a RootlessKit-forwarded `127.0.0.1:5000` registry.
+  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted logs proved the confined `aa-exec` profile reaches RootlessKit state initialization, then reported `mkdir /tmp/rootlesskit*: permission denied`. The start command now pins `/var/tmp/previewforge-buildkit/rootlesskit-state`, staged as `previewforge-buildkit` mode `0700`, without expanding AppArmor permissions. Clean PostgreSQL/Kafka `pnpm check`, AppArmor parser dry-run, shell syntax, docs, and diff checks passed; hosted build/push remains not-run after this fix.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
@@ -53,9 +53,9 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
   owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
-  next_action: Dispatch `.github/workflows/m4-buildkit-acceptance.yml` on GitHub-hosted `ubuntu-24.04`; it provisions and validates the narrow runner/AppArmor profile before the real BuildKit/registry manifest-digest test.
-  blocker: The hosted image's kernel/AppArmor behavior is not yet evidenced; if the workflow preflight or `--profile-test` fails, report that infrastructure incompatibility without weakening policy.
+  next_action: Rerun `.github/workflows/m4-buildkit-acceptance.yml` after the staged RootlessKit state-directory commit and require smoke-check plus build → push → immutable digest verification to pass.
+  blocker: Hosted kernel/AppArmor baseline and the confined profile now pass, but the rootless stack has not yet been re-run with its private explicit state directory. Keep the slice blocked until the complete workflow is green.
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; repository `pnpm check` passed, but the BuildKit/registry leg remains not-run because the rootless BuildKit infrastructure prerequisite is unavailable.
+  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, and staging, but no run has yet reached and passed the real build/push/digest oracle.
   evidence_commit: not-run
 ```
