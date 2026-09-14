@@ -57,16 +57,16 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    `kernel.apparmor_restrict_unprivileged_userns=1`. Any mismatch fails closed as an
    infrastructure blocker.
 3. Run `sudo ./scripts/m4-runner/provision-ubuntu.sh`, which creates the dedicated
-   `previewforge-buildkit` account, its subuid/subgid range, and the named AppArmor profile.
-   Provisioning loads only `/etc/apparmor.d/previewforge-rootlesskit` with an explicit
-   `apparmor_parser -r` call, then verifies that this target profile is active in enforce mode.
-   It does not invoke `aa-enforce`, whose broad profile scan can parse unrelated hosted-image
-   profiles such as `passt`/`pasta` and fail before the target profile is checked.
+   `previewforge-buildkit` account and its subuid/subgid range. It does not install, overwrite,
+   reload, or otherwise mutate an AppArmor profile. Instead it fails closed unless Ubuntu's
+   packaged `/etc/apparmor.d/rootlesskit` file has the expected `/usr/bin/rootlesskit`
+   per-binary attachment, `flags=(unconfined)`, and `userns,` rule and is already loaded.
 4. Source the immutable versions/checksums in `versions.env` and install BuildKit plus the
    Distribution registry with the checksum-verifying installers. No `latest` tag is used.
-5. Run `sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test`. This performs a separate
-   fail-closed active/enforce check through `/sys/kernel/security/apparmor/profiles` (with an
-   `aa-status` fallback) and does not mutate unrelated AppArmor profiles.
+5. Run `sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test`. This separately requires
+   AppArmor globally enabled, `kernel.apparmor_restrict_unprivileged_userns=1`, the canonical
+   `/usr/bin/rootlesskit` executable, package ownership and syntax of the packaged profile, its
+   loaded kernel state, and absence of the legacy custom profile. It changes no profile state.
 6. Stage the canonical registry and BuildKit configs with
    `sudo ./scripts/m4-runner/stage-rootless-runtime-config.sh`. The generated files live under
    `/var/tmp/previewforge-buildkit/`, are owned by `previewforge-buildkit`, and are mode `0600`.
@@ -74,22 +74,24 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    `0700`. The checkout is not readable by the restricted daemon user.
 7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
    the staged runtime files and fails closed when either is missing or has the wrong ownership or
-   mode. It enters the named confined AppArmor profile explicitly with `aa-exec`; the profile has
-   no automatic executable attachment, so it does not conflict with Ubuntu's packaged
-   `/usr/bin/rootlesskit` attachment. It also pins RootlessKit's state directory to
+   mode. It executes `/usr/bin/rootlesskit` directly so Ubuntu's packaged per-binary AppArmor
+   attachment is selected naturally. It also pins RootlessKit's state directory to
    `/var/tmp/previewforge-buildkit/rootlesskit-state` with mode `0700`. RootlessKit therefore does
-   not fall back to a random `/tmp/rootlesskit*` path outside the profile's runtime allowlist.
-8. Smoke-check `http://127.0.0.1:5000/v2/` and
-   `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
-9. If startup or smoke checks fail, the workflow prints filtered kernel AppArmor/rootlesskit
+   not fall back to a random `/tmp/rootlesskit*` path.
+8. Verify the published RootlessKit child PID and API socket, a distinct child user namespace,
+   the packaged `rootlesskit` AppArmor label, and UID/GID maps matching the dedicated user plus
+   its configured subordinate ranges.
+9. Verify registry readiness on `http://127.0.0.1:5000/v2/`, then separately require the BuildKit
+   Unix socket and `buildctl debug workers` to succeed.
+10. If startup or smoke checks fail, the workflow prints filtered kernel AppArmor/rootlesskit
    records from both `journalctl -k` and `dmesg`, plus the stack log and process state. Profile
    permissions are not widened based on a smoke timeout alone.
-10. Install pnpm/Node, install the locked dependencies, and run the acceptance client as the
+11. Install pnpm/Node, install the locked dependencies, and run the acceptance client as the
    GitHub checkout user. The client uses only the Unix socket; the rootless daemon remains a
    separate `previewforge-buildkit` process and its environment is an explicit credential-free
    allowlist. The socket parent grants only execute access to the checkout user's primary group;
    no repository or `.git` permissions are widened.
-11. Use these fixed acceptance values:
+12. Use these fixed acceptance values:
 
    ```text
    BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock
@@ -97,7 +99,7 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    REGISTRY_PROTOCOL=http
    ```
 
-12. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
+13. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
 
 The workflow's only external inputs are GitHub's hosted runner and the public release URLs in the
 version manifest. It does not request self-hosted registration or repository secrets.
@@ -106,7 +108,11 @@ version manifest. It does not request self-hosted registration or repository sec
 
 M4 can be marked complete only after the hosted workflow is green and proves all of the following:
 
+- RootlessKit published a live child in a distinct user namespace;
+- UID and GID maps match the dedicated user and its configured subordinate ranges;
+- the loopback registry became ready;
 - rootless BuildKit connected through the Unix socket;
+- `buildctl debug workers` returned a real worker;
 - the fixture image was pushed over plain HTTP to `127.0.0.1:5000` from the shared namespace;
 - BuildKit returned an immutable `sha256:<64 lowercase hex>` digest;
 - a manifest request by that digest returned HTTP 200 with a matching
@@ -114,3 +120,13 @@ M4 can be marked complete only after the hosted workflow is green and proves all
 - cleanup and credential/privilege-boundary assertions passed.
 
 Until that real `ubuntu-24.04` workflow succeeds, M4 remains blocked and is not COMPLETE.
+
+## Packaged AppArmor model
+
+Ubuntu's `flags=(unconfined) { userns, }` declaration is a named, per-executable profile attached
+only when `/usr/bin/rootlesskit` runs. It is not a global AppArmor disable, does not change
+`kernel.apparmor_restrict_unprivileged_userns=1`, and is not an `apparmor=unconfined` container or
+runtime flag. Ubuntu uses this profile to let that packaged binary create the user namespace it
+is designed to manage while AppArmor remains enabled for the host. PreviewForge does not edit or
+overwrite the system profile and fails closed if the hosted image does not provide and load the
+expected model.

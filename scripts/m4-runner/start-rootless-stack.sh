@@ -5,10 +5,12 @@ if [[ "$(id -un)" != previewforge-buildkit ]]; then
   echo 'run this script as previewforge-buildkit' >&2
   exit 1
 fi
-command -v rootlesskit >/dev/null
+[[ "$(command -v rootlesskit)" == /usr/bin/rootlesskit ]] || {
+  echo 'expected packaged RootlessKit at /usr/bin/rootlesskit' >&2
+  exit 1
+}
 command -v buildkitd >/dev/null
 command -v registry >/dev/null
-command -v aa-exec >/dev/null
 
 root_dir="${BUILDKIT_ROOT:-/var/tmp/previewforge-buildkit}"
 registry_config="${root_dir}/registry-config.yml"
@@ -70,7 +72,7 @@ clean_env=(
   "BUILDKIT_SOCKET=$socket_path"
   "BUILDKIT_ROOT=$root_dir"
 )
-env -i "${clean_env[@]}" nohup aa-exec -p previewforge-rootlesskit -- rootlesskit \
+env -i "${clean_env[@]}" nohup /usr/bin/rootlesskit \
   --state-dir "$state_dir" \
   --net=slirp4netns \
   --disable-host-loopback \

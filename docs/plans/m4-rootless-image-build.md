@@ -32,6 +32,10 @@ checks, or claim a production multi-tenant sandbox.
   namespace; the runner uses only
   `unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and the RootlessKit loopback forward
   `127.0.0.1:5000`. Do not bind either service to a VM interface.
+- Use Ubuntu 24.04's packaged `/usr/bin/rootlesskit flags=(unconfined) { userns, }` per-binary
+  AppArmor model on the hosted runner. Do not install or expand a PreviewForge custom profile,
+  invoke `aa-exec`, alter the global AppArmor/sysctl posture, or continue policy development inside
+  M4. Fail closed if the packaged profile is absent, unexpected, or not loaded.
 - Local acceptance uses the existing registry on `localhost:55000` and a disposable rootless
   BuildKit endpoint. It cannot claim production registry auth, multi-node BuildKit, or hostile
   tenant isolation.
@@ -43,7 +47,7 @@ All M4 work is root-owned because only one active agent is enabled for PreviewFo
 | Slice | Owned paths | Depends on |
 |---|---|---|
 | M4-SOURCE | `apps/worker/src/source/`, worker config/tests, source integration fixtures | M2 installation identity, M3 worker claims |
-| M4-BUILDKIT | `apps/worker/src/build/`, BuildKit adapter/tests, local rootless BuildKit wiring | M4-SOURCE |
+| M4-BUILDKIT | `apps/worker/src/build/`, BuildKit adapter/tests, hosted runner scripts and rootless wiring | M4-SOURCE |
 | M4-REGISTRY | worker build persistence/transition integration, digest resolver, database tests if needed | M4-BUILDKIT |
 | M4-ACCEPTANCE | root scripts, real source/build/registry acceptance, reports/backlog | all prior slices |
 
@@ -65,4 +69,7 @@ All M4 work is root-owned because only one active agent is enabled for PreviewFo
 - Successful publication resolves and persists an OCI digest, never a mutable tag.
 - Desired-SHA is rechecked before push completion is persisted; stale work is superseded.
 - Real source/build/registry acceptance passes with public/private fixtures and cleanup.
+- One hosted run proves, in order, RootlessKit child namespace, UID/GID maps, registry readiness,
+  BuildKit Unix socket, `buildctl debug workers`, fixture build, registry push, and immutable
+  digest verification. M4 is not complete on partial startup evidence.
 - `pnpm check` passes with exact test counts and the local topology limitations recorded.

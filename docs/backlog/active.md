@@ -24,12 +24,12 @@ Only unfinished work belongs here. Update this file before starting work and bef
   owner: root
   depends_on: [M4-SOURCE]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
-  owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md, infrastructure/m4-runner/apparmor/previewforge-rootlesskit]
+  owned_paths: [apps/worker/src/build/, scripts/m4-runner/, infrastructure/m4-runner/, .github/workflows/m4-buildkit-acceptance.yml]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: Rerun the hosted workflow with the narrowly updated AppArmor profile and inspect any subsequent exact denial before changing the profile again.
-  blocker: The repository profile now permits only the three reads observed during UID/GID-map setup in hosted run 34850233883 (`/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/`), but the updated profile has not yet run on the disposable hosted runner.
+  next_action: Push the locally verified packaged-profile implementation, dispatch the hosted workflow, and require it to prove the child namespace, UID/GID maps, registry, BuildKit socket, and `buildctl debug workers` before calling startup fixed.
+  blocker: The packaged-profile implementation is locally verified but not yet present in a real hosted run. Run 34854326618 at `52492de` remains the latest external evidence and failed under the now-retired custom profile.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted run 34850233883 at `3126055` proved the confined `aa-exec` profile and explicit `/var/tmp/previewforge-buildkit/rootlesskit-state` advance past the earlier exec/state failures. Its three exact read denials during UID/GID-map setup are now allowed in the repository profile; `apparmor_parser -Q -T`, M4 shell syntax, and `git diff --check` pass locally. Full `pnpm check` passed with database 78/78, API 1/1, and worker 5/5 integration tests. Updated hosted build/push remains not-run.
+  evidence: Hosted run 34854326618 captured exact `getsubids` execute denial and `newuidmap` missing-profile-transition denial under the retired custom profile. The canonical path now verifies Ubuntu's package-owned, loaded, userns-capable profile without mutation; starts `/usr/bin/rootlesskit` directly; and adds real child namespace/UID/GID-map gates before separate registry, socket, and worker checks. Shell syntax, packaged-profile parser/content checks, docs consistency, diff check, and full `pnpm check` pass locally; hosted validation is not-run.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
@@ -53,9 +53,9 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
   owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
-  next_action: Rerun the hosted workflow with the narrow UID-lookup read allowances, then require smoke-check plus build → push → immutable digest verification to pass.
-  blocker: The three proven AppArmor read denials are fixed in the repository profile but are not hosted-runner verified. Keep the slice blocked until the complete workflow is green.
+  next_action: After the packaged RootlessKit profile path passes hosted startup steps 1–5, require the fixture build, registry push, and immutable `sha256` digest verification to pass in the same real workflow.
+  blocker: The custom profile path failed before rootless namespace creation in hosted run 34854326618. Keep the slice blocked until all eight ordered hosted checks pass in one workflow run.
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes with database 78/78, API 1/1, and worker 5/5 integration tests. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, staging, explicit confined-profile selection, and private state-directory selection. Run 34850233883 exposed the three exact AppArmor reads now added to the profile; local parser and shell checks pass, but no updated run has yet reached the real build/push/digest oracle.
+  evidence: Harness added; full `pnpm check` passes locally with database 78/78, API 1/1, and worker 5/5 integration tests. Hosted run 34854326618 failed before ordered acceptance step 1 under the retired custom profile; no real run has yet proved child namespace, UID/GID maps, registry, BuildKit socket/workers, fixture build, push, and digest in one pass.
   evidence_commit: not-run
 ```

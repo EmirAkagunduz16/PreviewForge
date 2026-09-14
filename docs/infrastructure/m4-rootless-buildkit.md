@@ -22,42 +22,37 @@ and the [Ubuntu 24.04 image inventory](https://github.com/actions/runner-images/
 ## Security preflight and fail-closed behavior
 
 Before provisioning, the workflow requires Ubuntu 24.04, passwordless `sudo`, AppArmor enabled,
-and `kernel.apparmor_restrict_unprivileged_userns=1`. Provisioning then installs the named
-`previewforge-rootlesskit` profile and creates the dedicated
-`previewforge-buildkit:100000:65536` subuid/subgid ranges. The profile is loaded only through an
-explicit `apparmor_parser -r /etc/apparmor.d/previewforge-rootlesskit` call. The provisioning
-path deliberately does not call `aa-enforce`: on Ubuntu 24.04 hosted images that helper may scan
-unrelated `passt`/`pasta` mount profiles and fail with a `runbindable` parse error even when the
-PreviewForge profile is valid. The prerequisite script must pass with `--profile-test`; a mismatch
+and `kernel.apparmor_restrict_unprivileged_userns=1`. Provisioning creates the dedicated
+`previewforge-buildkit` user and its subuid/subgid ranges but does not install, edit, overwrite, or
+reload any AppArmor profile. The prerequisite script must pass with `--profile-test`; a mismatch
 is reported as an infrastructure blocker.
 
-Profile verification has two separate fail-closed stages:
+Packaged-profile verification has two separate fail-closed stages:
 
-1. `verify-apparmor-profile.sh --load` validates and loads the target profile, then checks that
-   `previewforge-rootlesskit (enforce)` is present in the kernel profile set.
-2. `check-prerequisites.sh --profile-test` repeats the active/enforce check using
-   `/sys/kernel/security/apparmor/profiles` (with a filtered `aa-status` fallback), without
-   changing any profile state.
+1. `verify-apparmor-profile.sh --check` requires `/etc/apparmor.d/rootlesskit` to be owned by the
+   Ubuntu `apparmor` package, parse successfully, define exactly the `rootlesskit` profile with an
+   `/usr/bin/rootlesskit flags=(unconfined)` attachment and `userns,`, and already be loaded in the
+   kernel profile set (with a filtered `aa-status` fallback).
+2. `check-prerequisites.sh --profile-test` repeats that check and also requires the global
+   user-namespace sysctl to remain `1`, AppArmor to remain enabled, the binary to resolve exactly
+   to `/usr/bin/rootlesskit`, and the legacy custom profile to be absent.
 
-No unrelated system profile is patched, disabled, or switched between complain and enforce mode.
+No unrelated system profile is patched, disabled, reloaded, or switched between complain and
+enforce mode. The deleted custom `previewforge-rootlesskit` profile and explicit `aa-exec` path are
+not part of the canonical runner.
 
-Ubuntu 24.04 also ships `/etc/apparmor.d/rootlesskit` as a per-binary
-`flags=(unconfined) { userns, }` profile. PreviewForge does not replace or edit that system profile
-and does not adopt its unconfined trade-off. The custom confined profile intentionally has no
-automatic `/usr/bin/rootlesskit` attachment; the start script enters it explicitly with:
-
-```text
-aa-exec -p previewforge-rootlesskit -- rootlesskit ...
-```
-
-This avoids competing executable attachments while retaining the custom capability, path, socket,
-and credential-deny rules throughout RootlessKit's namespace setup and child processes.
+Ubuntu 24.04's `flags=(unconfined) { userns, }` declaration is a named per-binary profile attached
+to `/usr/bin/rootlesskit`. It is not a global AppArmor disable, does not set
+`kernel.apparmor_restrict_unprivileged_userns=0`, and is not an `apparmor=unconfined` container or
+runtime flag. AppArmor remains globally enabled and the restrictive user-namespace sysctl remains
+`1`; the package profile supplies the explicit userns permission for this binary. If the hosted
+image does not provide this exact supported model, acceptance stops as an infrastructure blocker.
 
 The workflow never sets `kernel.apparmor_restrict_unprivileged_userns=0`, uses `--privileged`,
 `apparmor=unconfined`, `seccomp=unconfined`, host networking, a Docker socket, or a BuildKit TCP
 listener. A hosted image may contain a Docker daemon for unrelated actions; the prerequisite
-check fails only if the dedicated BuildKit user can access that socket, and the AppArmor profile
-still denies it to the rootless stack.
+check fails if the dedicated BuildKit user can access that socket. The packaged RootlessKit
+profile is not claimed as a Docker-socket deny control.
 
 ## Runtime configuration and client access boundary
 
@@ -78,10 +73,9 @@ RootlessKit's state directory is explicitly
 `/var/tmp/previewforge-buildkit/rootlesskit-state` and is owned by the dedicated user with mode
 `0700`. The root-only staging step creates it before privilege drop; the start script rejects a
 missing directory, symlink, or ownership/mode mismatch. Without `--state-dir`, RootlessKit creates
-a random `/tmp/rootlesskit*` directory; that fallback is intentionally unavailable to the confined
-profile. Keeping the state under the existing runtime allowlist avoids adding broad `/tmp` write
-access and keeps RootlessKit's API socket and namespace metadata inaccessible to the workflow
-client.
+a random `/tmp/rootlesskit*` directory. The explicit private path keeps RootlessKit's API socket
+and namespace metadata inaccessible to the workflow client and gives hosted validation a stable
+`child_pid` oracle.
 
 The daemon stays rootless, while the BuildKit test client runs as the normal GitHub checkout user
 so it can read `node_modules` and the test source without broadening repository or `.git`
@@ -137,7 +131,8 @@ The workflow sources this manifest and uses checksum-verifying installers; it ne
 
 ## Acceptance command and evidence
 
-The workflow runs the real test as `previewforge-buildkit` with:
+The workflow runs the real test as the normal GitHub checkout user, while the daemon remains the
+separate `previewforge-buildkit` process, with:
 
 ```text
 BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock
@@ -148,3 +143,9 @@ REGISTRY_PROTOCOL=http
 It must build and push the fixture, return an immutable `sha256:<64 hex>` digest, fetch the
 manifest by that digest, verify the matching `Docker-Content-Digest`, and pass cleanup and
 credential/privilege-boundary checks. M4 remains blocked until this hosted workflow succeeds.
+
+Before that acceptance test runs, the same hosted job must prove, in order: a live RootlessKit
+child in a distinct user namespace; successful UID/GID maps matching configured subordinate IDs;
+registry readiness; a BuildKit Unix socket; and `buildctl debug workers`. A passing parser or local
+unit suite is not hosted startup evidence. M4 is COMPLETE only when those five checks plus fixture
+build, registry push, and immutable digest verification all pass in one real hosted run.

@@ -15,8 +15,9 @@ if [[ "${ID:-}" != ubuntu || "${VERSION_ID:-}" != 24.04 ]]; then
   exit 1
 fi
 
-if sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null | grep -qx '0'; then
-  echo 'refusing a host with global apparmor_restrict_unprivileged_userns=0' >&2
+userns_policy="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)"
+if [[ "$userns_policy" != 1 ]]; then
+  echo "refusing host: kernel.apparmor_restrict_unprivileged_userns must be 1, got ${userns_policy:-unavailable}" >&2
   exit 1
 fi
 
@@ -39,9 +40,6 @@ ensure_subid() {
 ensure_subid /etc/subuid
 ensure_subid /etc/subgid
 
-install -D -o root -g root -m 0644 \
-  infrastructure/m4-runner/apparmor/previewforge-rootlesskit \
-  /etc/apparmor.d/previewforge-rootlesskit
-./scripts/m4-runner/verify-apparmor-profile.sh --load
+./scripts/m4-runner/verify-apparmor-profile.sh --check
 
-echo 'Provisioning complete. Do not register the runner until check-prerequisites.sh passes.'
+echo 'Provisioning complete. Packaged RootlessKit AppArmor profile verified without mutation.'

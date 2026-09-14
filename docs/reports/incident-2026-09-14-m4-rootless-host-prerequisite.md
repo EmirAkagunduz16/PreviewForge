@@ -75,8 +75,8 @@ configuration; partial configuration fails closed.
 - The earlier self-hosted runner inventory was empty; the acceptance design now removes that
   dependency and targets GitHub-hosted `ubuntu-24.04` instead.
 - Repository-side preparation is complete: the disposable Ubuntu 24.04 runbook, pinned image
-  reference, checksum-pinned BuildKit binary installer, prerequisite audit, narrow AppArmor
-  profile template, hosted-runner workflow, and immutable version manifest are present under `infrastructure/m4-runner/`,
+  reference, checksum-pinned BuildKit binary installer, packaged-profile prerequisite audit,
+  hosted-runner workflow, and immutable version manifest are present under `infrastructure/m4-runner/`,
   `scripts/m4-runner/`, and `.github/workflows/`.
 - Worker consumer/pipeline unit suite: 10 files/98 tests passed, including duplicate-lease
   suppression.
@@ -115,18 +115,20 @@ and is the only endpoint model accepted for the M4 workflow.
 
 The external VM/self-hosted runner path was removed because the repository is public and GitHub's
 standard `ubuntu-24.04` job already provides a fresh disposable VM. The workflow now provisions
-the dedicated user, subuid/subgid range, AppArmor profile, checksum-pinned BuildKit binary, and
-checksum-pinned Distribution registry inside the job. It first requires the hosted kernel to
+the dedicated user, subuid/subgid range, checksum-pinned BuildKit binary, and checksum-pinned
+Distribution registry inside the job. It requires Ubuntu's packaged RootlessKit AppArmor profile
+to be present, loaded, and userns-capable without modifying it. It first requires the hosted
+kernel to
 expose `kernel.apparmor_restrict_unprivileged_userns=1` and AppArmor enabled; any mismatch fails
 closed instead of widening policy. The small fixture fits the hosted runner's documented 14-GB
 SSD, so the former 40-GB external-VM requirement is no longer canonical.
 
 ## Prevention / next action
 
-Provision an explicitly authorized disposable Ubuntu 24.04 runner with the policy already
-configured, run the checksum-pinned stack from the hosted workflow, and execute the real
-build/registry acceptance matrix. If the hosted image fails the AppArmor preflight or
-`--profile-test`, report it as an infrastructure blocker rather than widening security policy.
+Run the canonical workflow on a disposable Ubuntu 24.04 runner and require the packaged RootlessKit
+profile preflight, child namespace and UID/GID maps, registry, BuildKit socket/workers, fixture
+build, push, and immutable digest checks to pass in order. If the hosted image fails the packaged
+profile preflight, report it as an infrastructure blocker rather than changing system policy.
 Do not weaken the build by mounting a Docker socket or enabling insecure/privileged entitlements.
 
 ## Hosted AppArmor provisioning finding
@@ -224,12 +226,47 @@ directory itself rather than its already-allowed descendants. The repository pro
 only these three proven reads. No global AppArmor/sysctl relaxation, unconfined mode, Docker
 socket, host network, or broader home/config access was added.
 
-Local `apparmor_parser -Q -T`, M4 shell syntax, and `git diff --check` validation pass. Full
-`pnpm check` also passes with database 78/78, API 1/1, and worker 5/5 integration tests. An
-independent diff review found no AppArmor rule defect and confirmed the exact path/read-only
-mapping. The updated profile has not yet been exercised on the disposable hosted runner, so M4
-remains blocked until the smoke check and build → push → immutable digest oracle pass there. Any
-subsequent profile change still requires an exact kernel denial.
+Local `apparmor_parser -Q -T`, M4 shell syntax, and `git diff --check` validation passed for that
+iteration. Full `pnpm check` also passed with database 78/78, API 1/1, and worker 5/5 integration
+tests. The next hosted run superseded the narrow-read approach by proving that the custom profile's
+child-exec model itself was the blocker.
+
+## Custom confined profile retirement
+
+Hosted run `34854326618` at commit `52492de` reached RootlessKit UID/GID-map setup, then failed
+before creating the child namespace. The kernel recorded:
+
+```text
+apparmor="DENIED" name="/usr/bin/getsubids" requested_mask="x"
+apparmor="DENIED" operation="exec" info="profile transition not found" name="/usr/bin/newuidmap" target="/usr/bin/newuidmap"
+```
+
+The custom profile used `px` for `newuidmap` and `newgidmap` without defining the required target
+child profiles. Continuing to add file and transition rules would turn M4 into custom AppArmor
+policy development without proving the product's build boundary. That path is now retired.
+
+The canonical runner instead executes `/usr/bin/rootlesskit` normally and relies on Ubuntu 24.04's
+packaged `/etc/apparmor.d/rootlesskit` attachment, whose expected model is
+`/usr/bin/rootlesskit flags=(unconfined) { userns, }`. PreviewForge neither installs nor overwrites
+that file. Prerequisites fail closed unless it is package-owned, parses to the expected profile,
+contains the userns permission, and is already loaded; the legacy custom profile must be absent.
+
+This named per-binary unconfined profile is not a global AppArmor disable and is not an
+`apparmor=unconfined` container/runtime flag. AppArmor remains globally enabled and
+`kernel.apparmor_restrict_unprivileged_userns=1` remains mandatory. The dedicated Unix user,
+subuid/subgid mappings, rootless BuildKit, credential-free daemon environment, loopback-only
+registry, Unix-only BuildKit endpoint, and all Docker/privileged/seccomp prohibitions remain.
+
+Repository implementation alone is not a fix claim. M4 remains blocked until one real hosted run
+proves, in order: RootlessKit child namespace, UID/GID maps, registry readiness, BuildKit Unix
+socket, `buildctl debug workers`, fixture build, registry push, and immutable `sha256` digest.
+
+Local verification of the packaged-profile implementation passed: the Ubuntu package profile
+parses and matches the expected attachment/userns model, all M4 shell scripts pass `bash -n`,
+documentation consistency and diff checks pass, and full `pnpm check` passes with database 78/78,
+API 1/1, and worker 5/5 integration tests. The local host cannot provide the disposable hosted
+runner's privileged AppArmor/kernel oracle, so this evidence does not advance any of the eight
+hosted gates.
 
 ## Related links
 

@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-profile_test=0
-if [[ "${1:-}" == "--profile-test" ]]; then
-  profile_test=1
-fi
+case "${1:---check}" in
+  --check)
+    profile_test=0
+    ;;
+  --profile-test)
+    profile_test=1
+    ;;
+  *)
+    printf 'usage: %s [--check|--profile-test]\n' "$0" >&2
+    exit 2
+    ;;
+esac
 
 failures=0
 check_command() {
@@ -25,9 +33,14 @@ else
   failures=$((failures + 1))
 fi
 
-for command_name in rootlesskit newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl registry aa-exec aa-status apparmor_parser; do
+for command_name in rootlesskit getsubids newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl registry aa-status apparmor_parser dpkg-query; do
   check_command "$command_name"
 done
+
+if [[ "$(command -v rootlesskit 2>/dev/null || true)" != /usr/bin/rootlesskit ]]; then
+  printf 'packaged RootlessKit executable is not canonical: expected /usr/bin/rootlesskit\n' >&2
+  failures=$((failures + 1))
+fi
 
 if [[ "$profile_test" == 0 && "$(id -un)" != previewforge-buildkit ]]; then
   printf 'runner checks must execute as previewforge-buildkit\n' >&2
@@ -48,8 +61,12 @@ if ! rg -q '^previewforge-buildkit:' /etc/subgid 2>/dev/null; then
 fi
 
 sysctl_value="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)"
-if [[ "$sysctl_value" == 0 ]]; then
-  printf 'global apparmor_restrict_unprivileged_userns=0 is forbidden\n' >&2
+if [[ "$sysctl_value" != 1 ]]; then
+  printf 'kernel.apparmor_restrict_unprivileged_userns must be 1, got %s\n' "${sysctl_value:-unavailable}" >&2
+  failures=$((failures + 1))
+fi
+if ! aa-status --enabled >/dev/null 2>&1; then
+  printf 'AppArmor is not globally enabled\n' >&2
   failures=$((failures + 1))
 fi
 

@@ -59,7 +59,7 @@ jobs:
             REGISTRY_TARBALL_SHA256="$REGISTRY_TARBALL_SHA256" \
             ./scripts/m4-runner/install-registry-binary.sh
 
-      - name: Verify rootless prerequisites and AppArmor profile
+      - name: Verify rootless prerequisites and packaged AppArmor profile
         run: sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test
 
       - name: Stage rootless runtime config
@@ -72,22 +72,42 @@ jobs:
       - name: Start rootless BuildKit and registry
         run: sudo -u previewforge-buildkit ./scripts/m4-runner/start-rootless-stack.sh
 
-      - name: Smoke-check loopback registry and Unix BuildKit socket
+      - name: Verify RootlessKit child namespace and UID/GID maps
+        run: sudo ./scripts/m4-runner/verify-rootless-namespace.sh
+
+      - name: Verify loopback registry readiness
         shell: bash
         run: |
           set -euo pipefail
           for attempt in {1..30}; do
-            if curl --fail --silent --show-error http://127.0.0.1:5000/v2/ >/dev/null \
-              && buildctl \
-                --addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock \
-                debug workers; then
+            if curl --fail --silent --show-error http://127.0.0.1:5000/v2/ >/dev/null; then
               exit 0
             fi
             sleep 1
           done
-          echo 'M4 blocker: rootless registry or BuildKit socket did not become ready' >&2
+          echo 'M4 blocker: rootless loopback registry did not become ready' >&2
           sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
           exit 1
+
+      - name: Verify BuildKit Unix socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if [[ -S /var/tmp/previewforge-buildkit/buildkitd.sock ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'M4 blocker: BuildKit Unix socket did not become ready' >&2
+          sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
+          exit 1
+
+      - name: Verify BuildKit workers
+        run: |
+          buildctl \
+            --addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock \
+            debug workers
 
       - name: Diagnose rootless startup failure
         if: failure()
@@ -96,11 +116,11 @@ jobs:
           set +e
           echo '--- kernel AppArmor/rootlesskit records (journalctl) ---'
           sudo journalctl -k --no-pager 2>&1 \
-            | grep -Ei 'apparmor="DENIED"|rootlesskit|previewforge-rootlesskit' \
+            | grep -Ei 'apparmor="DENIED"|rootlesskit' \
             | tail -200 || true
           echo '--- kernel AppArmor/rootlesskit records (dmesg) ---'
           sudo dmesg --color=never 2>&1 \
-            | grep -Ei 'apparmor="DENIED"|rootlesskit|previewforge-rootlesskit' \
+            | grep -Ei 'apparmor="DENIED"|rootlesskit' \
             | tail -200 || true
           echo '--- rootless stack log ---'
           sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
@@ -121,7 +141,7 @@ jobs:
           # Prisma 7 loads prisma.config.ts during generation; no connection is opened.
           DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
 
-      - name: Run real BuildKit and registry acceptance
+      - name: Build fixture, push registry, and verify immutable digest
         shell: bash
         env:
           BUILDKIT_ADDR: unix:///var/tmp/previewforge-buildkit/buildkitd.sock
