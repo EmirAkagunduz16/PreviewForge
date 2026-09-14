@@ -82,6 +82,17 @@ sudo REGISTRY_TARBALL_URL=https://github.com/distribution/distribution/releases/
   ./scripts/m4-runner/install-registry-binary.sh
 ```
 
+The repository also carries the canonical BuildKit daemon config at
+`infrastructure/m4-runner/buildkitd.toml`. It declares only:
+
+```toml
+[registry."127.0.0.1:5000"]
+  http = true
+```
+
+This is deliberate loopback-only plain HTTP for the disposable registry. Do not add
+`insecure = true`, which is a different setting for trusting insecure TLS behavior.
+
 Verify the complete host prerequisite before starting either process:
 
 ```bash
@@ -90,9 +101,9 @@ sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test
 
 ### 5. Start the rootless BuildKit and registry stack
 
-Run this as the unprivileged runner user from the repository checkout. The script copies the
-registry config into the BuildKit runtime directory so the AppArmor profile needs no access to
-the checkout path.
+Run this as the unprivileged runner user from the repository checkout. The script copies both the
+registry config and the BuildKit config into the runtime directory, then starts `buildkitd` with
+an explicit `--config` path. The AppArmor profile therefore needs no access to the checkout path.
 
 ```bash
 sudo -u previewforge-buildkit ./scripts/m4-runner/start-rootless-stack.sh
@@ -112,7 +123,8 @@ sudo -u previewforge-buildkit buildctl \
 
 The stack starts an ephemeral distribution registry with delete enabled and data under
 `/var/tmp/previewforge-registry`. No registry credential is needed for this loopback-only
-fixture. Do not replace `127.0.0.1:5000` with a public or `0.0.0.0` address.
+fixture. BuildKit's explicit config forces plain HTTP only for `127.0.0.1:5000`; do not replace
+that address with a public or `0.0.0.0` endpoint.
 
 ### 7. Install the GitHub Actions runner binary
 

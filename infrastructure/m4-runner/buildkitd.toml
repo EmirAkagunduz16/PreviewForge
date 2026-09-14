@@ -1,0 +1,6 @@
+# M4 acceptance runs a disposable registry over loopback-only plain HTTP.
+# This is intentionally not `insecure = true`: no TLS endpoint is being
+# trusted, and the registry is reachable only inside the shared RootlessKit
+# network namespace.
+[registry."127.0.0.1:5000"]
+  http = true

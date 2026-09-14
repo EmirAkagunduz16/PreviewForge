@@ -103,6 +103,8 @@ unreachable from the BuildKit namespace. The canonical design is now a single Ro
 - BuildKit pushes to `127.0.0.1:5000` in its own shared namespace;
 - the runner reaches BuildKit only through
   `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`;
+- BuildKit is given a runtime-copied daemon config with `http = true` only for
+  `127.0.0.1:5000`; `insecure = true` is not used;
 - no BuildKit TCP listener, VM-interface bind, public registry bind, privileged mode, Docker
   socket, or global AppArmor/sysctl relaxation is used.
 

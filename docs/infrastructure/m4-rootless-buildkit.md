@@ -74,7 +74,17 @@ rootlesskit --net=slirp4netns --disable-host-loopback \
 ```
 
 The registry config binds `127.0.0.1:5000` inside that namespace. BuildKit is started with
-`--addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and no insecure entitlements.
+`--config /var/tmp/previewforge-buildkit/buildkitd.toml` and
+`--addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock`. The canonical config contains
+only:
+
+```toml
+[registry."127.0.0.1:5000"]
+  http = true
+```
+
+This explicitly selects plain HTTP for the loopback-only disposable registry. It does not use
+`insecure = true`, and it does not enable any insecure BuildKit entitlement.
 
 ## Repository variables
 

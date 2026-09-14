@@ -13,4 +13,4 @@ if [[ -r "$pid_path" ]]; then
   kill -KILL "$pid" 2>/dev/null || true
   rm -f "$pid_path"
 fi
-rm -f "${BUILDKIT_SOCKET:-${root_dir}/buildkitd.sock}" "$root_dir/registry-config.yml"
+rm -f "${BUILDKIT_SOCKET:-${root_dir}/buildkitd.sock}" "$root_dir/registry-config.yml" "$root_dir/buildkitd.toml"
