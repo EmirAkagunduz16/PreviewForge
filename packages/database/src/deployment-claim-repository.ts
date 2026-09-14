@@ -162,67 +162,127 @@ export class DeploymentClaimRepository {
 
   async claimRequestedDeployment(input: DeploymentClaimInput): Promise<DeploymentClaimResult> {
     const event = validateClaimInput(input);
-    return withSerializableRetry(this.prisma, async (tx) => {
-      const now = await serverNow(tx);
-      const leaseExpiresAt = new Date(now.getTime() + input.leaseTtlMs);
-      const delivery = await ensureDelivery(tx, input.delivery, event, now);
-      const deployment = await tx.deployment.findUnique({
-        where: { id: event.deploymentId },
-        include: {
-          environment: {
-            select: {
-              desiredCommitSha: true,
-              project: {
-                select: {
-                  id: true,
-                  repositoryFullName: true,
-                  installation: { select: { githubInstallationId: true } },
+    return withSerializableRetry(
+      this.prisma,
+      async (tx) => {
+        const now = await serverNow(tx);
+        const leaseExpiresAt = new Date(now.getTime() + input.leaseTtlMs);
+        const delivery = await ensureDelivery(tx, input.delivery, event, now);
+        const deployment = await tx.deployment.findUnique({
+          where: { id: event.deploymentId },
+          include: {
+            environment: {
+              select: {
+                desiredCommitSha: true,
+                project: {
+                  select: {
+                    id: true,
+                    repositoryFullName: true,
+                    installation: { select: { githubInstallationId: true } },
+                  },
                 },
               },
             },
           },
-        },
-      });
-      if (
-        deployment === null ||
-        deployment.environmentId !== event.environmentId ||
-        deployment.commitSha !== event.commitSha
-      )
-        throw new DeploymentClaimConflictError(
-          "DEPLOYMENT_AGGREGATE_MISMATCH",
-          "deployment request does not match its aggregate",
-        );
-      if (
-        deployment.environment.project.id !== event.projectId ||
-        deployment.environment.project.repositoryFullName !== event.repositoryFullName ||
-        deployment.environment.project.installation.githubInstallationId.toString() !==
-          event.installationId
-      )
-        throw new DeploymentClaimConflictError(
-          "DEPLOYMENT_AGGREGATE_MISMATCH",
-          "deployment request does not match its project aggregate",
-        );
-      const receipt = await tx.consumerReceipt.findUnique({
-        where: {
-          consumerName_eventId: {
-            consumerName: input.delivery.consumerName,
-            eventId: event.eventId,
-          },
-        },
-      });
-      if (receipt !== null) {
-        if (deployment.status === "QUEUED")
+        });
+        if (
+          deployment === null ||
+          deployment.environmentId !== event.environmentId ||
+          deployment.commitSha !== event.commitSha
+        )
           throw new DeploymentClaimConflictError(
-            "DEPLOYMENT_CLAIM_INVARIANT",
-            "consumer receipt exists for a queued deployment",
+            "DEPLOYMENT_AGGREGATE_MISMATCH",
+            "deployment request does not match its aggregate",
           );
         if (
-          deployment.status === "CLONING" &&
-          deployment.leaseExpiresAt !== null &&
-          deployment.leaseExpiresAt <= now
-        ) {
+          deployment.environment.project.id !== event.projectId ||
+          deployment.environment.project.repositoryFullName !== event.repositoryFullName ||
+          deployment.environment.project.installation.githubInstallationId.toString() !==
+            event.installationId
+        )
+          throw new DeploymentClaimConflictError(
+            "DEPLOYMENT_AGGREGATE_MISMATCH",
+            "deployment request does not match its project aggregate",
+          );
+        const receipt = await tx.consumerReceipt.findUnique({
+          where: {
+            consumerName_eventId: {
+              consumerName: input.delivery.consumerName,
+              eventId: event.eventId,
+            },
+          },
+        });
+        if (receipt !== null) {
+          if (deployment.status === "QUEUED")
+            throw new DeploymentClaimConflictError(
+              "DEPLOYMENT_CLAIM_INVARIANT",
+              "consumer receipt exists for a queued deployment",
+            );
+          if (
+            deployment.status === "CLONING" &&
+            deployment.leaseExpiresAt !== null &&
+            deployment.leaseExpiresAt <= now
+          ) {
+            if (deployment.environment.desiredCommitSha !== event.commitSha) {
+              await supersedeDeployment(tx, deployment, now);
+              await markDeliveryProcessed(tx, delivery.id, now);
+              return {
+                kind: "SUPERSEDED",
+                deploymentId: deployment.id,
+                environmentId: deployment.environmentId,
+                leaseGeneration: deployment.leaseGeneration,
+              };
+            }
+            const takeover = await takeOverExpiredLease(
+              tx,
+              deployment,
+              input.workerId,
+              leaseExpiresAt,
+              now,
+            );
+            if (takeover === null)
+              throw new DeploymentClaimConflictError(
+                "DEPLOYMENT_CLAIM_RACE",
+                "deployment lease takeover lost a race",
+              );
+            await markDeliveryProcessed(tx, delivery.id, now);
+            return {
+              kind: "RECLAIMED",
+              deploymentId: deployment.id,
+              environmentId: deployment.environmentId,
+              commitSha: deployment.commitSha,
+              leaseToken: takeover.leaseToken,
+              leaseGeneration: takeover.leaseGeneration,
+            };
+          }
+          await markDeliveryProcessed(tx, delivery.id, now);
+          const duplicateKind =
+            deployment.status === "CLONING" && deployment.leaseExpiresAt !== null
+              ? "DUPLICATE_ACTIVE_LEASE"
+              : "DUPLICATE_TERMINAL";
+          return {
+            kind: duplicateKind,
+            deploymentId: deployment.id,
+            environmentId: deployment.environmentId,
+            leaseGeneration: deployment.leaseGeneration,
+          };
+        }
+        if (delivery.status === "PROCESSED") {
+          throw new DeploymentClaimConflictError(
+            "DEPLOYMENT_CLAIM_INVARIANT",
+            "processed Kafka delivery has no semantic receipt",
+          );
+        }
+        if (deployment.status === "QUEUED") {
           if (deployment.environment.desiredCommitSha !== event.commitSha) {
             await supersedeDeployment(tx, deployment, now);
+            await tx.consumerReceipt.create({
+              data: {
+                consumerName: input.delivery.consumerName,
+                eventId: event.eventId,
+                processedAt: now,
+              },
+            });
             await markDeliveryProcessed(tx, delivery.id, now);
             return {
               kind: "SUPERSEDED",
@@ -231,49 +291,35 @@ export class DeploymentClaimRepository {
               leaseGeneration: deployment.leaseGeneration,
             };
           }
-          const takeover = await takeOverExpiredLease(
-            tx,
-            deployment,
-            input.workerId,
-            leaseExpiresAt,
-            now,
-          );
-          if (takeover === null)
+          const leaseToken = randomUUID();
+          const updated = await tx.deployment.updateManyAndReturn({
+            where: {
+              id: deployment.id,
+              status: "QUEUED",
+              commitSha: event.commitSha,
+              leaseToken: null,
+              environment: { desiredCommitSha: event.commitSha },
+            },
+            data: {
+              status: "CLONING",
+              leaseToken,
+              leaseOwner: input.workerId,
+              leaseGeneration: { increment: 1 },
+              leaseAcquiredAt: now,
+              leaseRenewedAt: null,
+              leaseExpiresAt,
+              startedAt: now,
+              updatedAt: now,
+            },
+          });
+          const claimed = updated[0];
+          if (claimed === undefined)
             throw new DeploymentClaimConflictError(
               "DEPLOYMENT_CLAIM_RACE",
-              "deployment lease takeover lost a race",
+              "deployment claim lost a race",
             );
-          await markDeliveryProcessed(tx, delivery.id, now);
-          return {
-            kind: "RECLAIMED",
-            deploymentId: deployment.id,
-            environmentId: deployment.environmentId,
-            commitSha: deployment.commitSha,
-            leaseToken: takeover.leaseToken,
-            leaseGeneration: takeover.leaseGeneration,
-          };
-        }
-        await markDeliveryProcessed(tx, delivery.id, now);
-        const duplicateKind =
-          deployment.status === "CLONING" && deployment.leaseExpiresAt !== null
-            ? "DUPLICATE_ACTIVE_LEASE"
-            : "DUPLICATE_TERMINAL";
-        return {
-          kind: duplicateKind,
-          deploymentId: deployment.id,
-          environmentId: deployment.environmentId,
-          leaseGeneration: deployment.leaseGeneration,
-        };
-      }
-      if (delivery.status === "PROCESSED") {
-        throw new DeploymentClaimConflictError(
-          "DEPLOYMENT_CLAIM_INVARIANT",
-          "processed Kafka delivery has no semantic receipt",
-        );
-      }
-      if (deployment.status === "QUEUED") {
-        if (deployment.environment.desiredCommitSha !== event.commitSha) {
-          await supersedeDeployment(tx, deployment, now);
+          await createTransitionOutbox(tx, claimed, "QUEUED", "CLONING", now);
+          input.faultInjector?.("before-receipt");
           await tx.consumerReceipt.create({
             data: {
               consumerName: input.delivery.consumerName,
@@ -283,79 +329,37 @@ export class DeploymentClaimRepository {
           });
           await markDeliveryProcessed(tx, delivery.id, now);
           return {
-            kind: "SUPERSEDED",
+            kind: "CLAIMED",
+            deploymentId: claimed.id,
+            environmentId: claimed.environmentId,
+            commitSha: claimed.commitSha,
+            leaseToken,
+            leaseGeneration: claimed.leaseGeneration,
+          };
+        }
+        if (isTerminal(deployment.status)) {
+          await tx.consumerReceipt.create({
+            data: {
+              consumerName: input.delivery.consumerName,
+              eventId: event.eventId,
+              processedAt: now,
+            },
+          });
+          await markDeliveryProcessed(tx, delivery.id, now);
+          return {
+            kind: "DUPLICATE_TERMINAL",
             deploymentId: deployment.id,
             environmentId: deployment.environmentId,
             leaseGeneration: deployment.leaseGeneration,
           };
         }
-        const leaseToken = randomUUID();
-        const updated = await tx.deployment.updateManyAndReturn({
-          where: {
-            id: deployment.id,
-            status: "QUEUED",
-            commitSha: event.commitSha,
-            leaseToken: null,
-            environment: { desiredCommitSha: event.commitSha },
-          },
-          data: {
-            status: "CLONING",
-            leaseToken,
-            leaseOwner: input.workerId,
-            leaseGeneration: { increment: 1 },
-            leaseAcquiredAt: now,
-            leaseRenewedAt: null,
-            leaseExpiresAt,
-            startedAt: now,
-            updatedAt: now,
-          },
-        });
-        const claimed = updated[0];
-        if (claimed === undefined)
-          throw new DeploymentClaimConflictError(
-            "DEPLOYMENT_CLAIM_RACE",
-            "deployment claim lost a race",
-          );
-        await createTransitionOutbox(tx, claimed, "QUEUED", "CLONING", now);
-        input.faultInjector?.("before-receipt");
-        await tx.consumerReceipt.create({
-          data: {
-            consumerName: input.delivery.consumerName,
-            eventId: event.eventId,
-            processedAt: now,
-          },
-        });
-        await markDeliveryProcessed(tx, delivery.id, now);
-        return {
-          kind: "CLAIMED",
-          deploymentId: claimed.id,
-          environmentId: claimed.environmentId,
-          commitSha: claimed.commitSha,
-          leaseToken,
-          leaseGeneration: claimed.leaseGeneration,
-        };
-      }
-      if (isTerminal(deployment.status)) {
-        await tx.consumerReceipt.create({
-          data: {
-            consumerName: input.delivery.consumerName,
-            eventId: event.eventId,
-            processedAt: now,
-          },
-        });
-        await markDeliveryProcessed(tx, delivery.id, now);
-        return {
-          kind: "DUPLICATE_TERMINAL",
-          deploymentId: deployment.id,
-          environmentId: deployment.environmentId,
-          leaseGeneration: deployment.leaseGeneration,
-        };
-      }
-      throw new DeploymentClaimConflictError(
-        "DEPLOYMENT_STATE_INVALID",
-        "deployment is already in an unsupported state",
-      );
-    });
+        throw new DeploymentClaimConflictError(
+          "DEPLOYMENT_STATE_INVALID",
+          "deployment is already in an unsupported state",
+        );
+      },
+      { retryUniqueConflict: true },
+    );
   }
 
   async renewLease(input: LeaseInput): Promise<{ leaseExpiresAt: Date; leaseGeneration: number }> {
@@ -926,6 +930,7 @@ function wait(milliseconds: number): Promise<void> {
 async function withSerializableRetry<T>(
   prisma: PrismaClient,
   operation: (tx: TransactionClient) => Promise<T>,
+  options: { retryUniqueConflict?: boolean } = {},
 ): Promise<T> {
   for (let retry = 0; retry <= MAX_TRANSACTION_RETRIES; retry += 1) {
     try {
@@ -934,6 +939,14 @@ async function withSerializableRetry<T>(
       });
     } catch (error) {
       if (isSerializationConflict(error) && retry < MAX_TRANSACTION_RETRIES) {
+        await wait(retryDelayMs(retry));
+        continue;
+      }
+      if (
+        options.retryUniqueConflict &&
+        isUniqueConflict(error) &&
+        retry < MAX_TRANSACTION_RETRIES
+      ) {
         await wait(retryDelayMs(retry));
         continue;
       }
