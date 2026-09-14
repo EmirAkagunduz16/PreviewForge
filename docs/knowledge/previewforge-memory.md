@@ -23,6 +23,7 @@ See [MVP scope](../product/mvp-scope.md) and [foundation research](../research/2
 - M0 foundation is recorded complete: scope, threat model, ADRs, monorepo shape, local dependencies, quality gates, and domain contract tests are in place.
 - M1 is complete. Its database, configuration, observability, API-error, compare-and-set transition, transactional outbox, and PostgreSQL integration-test slices are verified and archived.
 - M2 is complete. GitHub App OAuth/session handling, verified installation ownership, authorized repository import, raw-byte webhook verification, durable delivery deduplication, source ordering, deployment intent, and close deletion intent are integrated and independently tested.
+- M3 is complete and archived. Durable Kafka contracts, PostgreSQL relay/claim state, bounded retries, receipts, desired-SHA fencing, real broker restart acceptance, and worker shutdown are verified; the local one-broker/no-volume limitation remains.
 - PostgreSQL is authoritative. Kafka is an at-least-once transport behind a transactional outbox; Redis is deliberately deferred until a measured need exists.
 - The API remains one modular NestJS application and the worker remains independently scalable; a new network service requires an ADR.
 
@@ -49,6 +50,6 @@ See [deployment state machine](../architecture/deployment-state-machine.md), [th
 - [ADR 0004 — rootless BuildKit](../architecture/decisions/0004-rootless-buildkit.md)
 - [ADR 0005 — SSE live output](../architecture/decisions/0005-sse-for-live-output.md)
 
-## Next handoff
+## How to resume
 
-Plan M3 Kafka dispatch and worker claims from the delivery roadmap. Add stable M3 slices to the active backlog before implementation, preserve the PostgreSQL outbox as the source of truth, and prove at-least-once delivery, leases, receipts, retries, and desired-SHA guards with real Kafka/PostgreSQL acceptance tests. Update this note only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.
+Use [the roadmap](../delivery/roadmap.md) for milestone status, [the active backlog](../backlog/active.md) for the next unfinished action, and the next milestone plan when it is created. M3 is complete; M4 rootless image build is active. Read this file when a durable invariant or decision is needed; it is an index, not a progress log. Update it only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.

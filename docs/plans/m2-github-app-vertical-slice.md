@@ -1,9 +1,10 @@
 # M2 execution plan — GitHub App vertical slice
 
-Status: active
+Status: complete
 Owner: PreviewForge delivery
 Baseline before planning: `e499850dd94e631d558934c5f5d34bffd7f41eb9`, clean worktree
 Sources: [delivery roadmap](../delivery/roadmap.md), [MVP scope](../product/mvp-scope.md), [system design](../architecture/system-design.md), [ADR 0002](../architecture/decisions/0002-postgres-outbox-and-kafka.md)
+Completion evidence: [M2 completion report](../reports/session-2026-09-13-m2-complete.md) and [backlog archive](../backlog/archive.md)
 
 ## Outcome
 

@@ -45,8 +45,12 @@ Run `pnpm docs:check` after adding or changing report, plan, backlog, knowledge,
 ```yaml
 id: M1-EXAMPLE
 status: in-progress | blocked | needs-review
+acceptance_ref: docs/plans/mx-plan.md#SLICE-ID
+owned_paths: [path/owned/by/slice]
+verification_command: exact command or not-run
 next_action: one concrete action and target file/module
 blocker: none | exact blocker
 acceptance: observable criterion still outstanding
 evidence: command/test/link or not-run reason
+evidence_commit: commit/tree identifier or not-run until root verification
 ```

@@ -18,6 +18,10 @@ Use this skill with `previewforge-delivery` and the domain skill relevant to the
 
 ## Delegate without collisions
 
+### Bounded context handoff
+
+Each sub-agent receives only the context required for its slice: objective and acceptance row, relevant plan/ADR/skill links, resolved decisions, baseline and protected dirty paths, exclusive ownership, forbidden paths, and the narrow verification command. The root agent must not forward unrelated chat or full session history. If context is compacted or a session resumes, reconstruct this packet from the plan and active backlog before continuing.
+
 - Use Luna subagents for milestone research and implementation unless the user requests a different model. Use parallel read-only research during planning when it shortens discovery.
 - Before delegation, record a machine-readable ownership ledger, baseline tree/commit, `git status --short`, and staged/unstaged changed-file lists or hashes. Treat pre-existing dirty paths as protected unless root explicitly reserves them while preserving their baseline. Include generated output, migrations, shared exports, manifests, lockfiles, backlog, and reports. Give each implementation agent an exclusive file/directory ownership set. Keep shared files with the root agent unless one agent receives explicit exclusive ownership.
 - Never assign the same writable file to concurrent agents. If two slices require it, sequence those edits or reserve the file for root integration.

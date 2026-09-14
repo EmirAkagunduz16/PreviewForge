@@ -19,7 +19,7 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "test": "pnpm test:unit",
-    "test:integration": "node -e \"if (!process.env.DATABASE_URL) { console.error('DATABASE_URL is required for integration tests'); process.exit(1); }\" && vitest run test/*.integration.test.ts",
+    "test:integration": "node -e \"if (!process.env.DATABASE_URL) { console.error('DATABASE_URL is required for integration tests'); process.exit(1); }\" && vitest run test/*.integration.test.ts --no-file-parallelism",
     "test:unit": "vitest run --passWithNoTests --exclude 'test/**/*.integration.test.ts'",
     "typecheck": "tsc --noEmit"
   },

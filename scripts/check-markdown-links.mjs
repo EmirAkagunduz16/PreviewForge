@@ -1,5 +1,5 @@
 import { access, readdir, readFile } from "node:fs/promises";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -7,6 +7,7 @@ const ignoredDirectories = new Set([".git", ".next", ".turbo", "dist", "node_mod
 const markdownFiles = await collectMarkdownFiles(repositoryRoot);
 const failures = [];
 let checkedLinks = 0;
+let skippedExternalLinks = 0;
 
 for (const sourcePath of markdownFiles) {
   const content = await readFile(sourcePath, "utf8");
@@ -23,6 +24,13 @@ for (const sourcePath of markdownFiles) {
       : rawTarget.split(/\s+["']/u, 1)[0];
     const decodedTarget = decodeURIComponent(withoutTitle.split("#", 1)[0]);
     const targetPath = resolve(dirname(sourcePath), decodedTarget);
+
+    const relativeTarget = relative(repositoryRoot, targetPath);
+    if (relativeTarget.startsWith("..") || isAbsolute(relativeTarget)) {
+      skippedExternalLinks += 1;
+      continue;
+    }
+
     checkedLinks += 1;
 
     try {
@@ -42,7 +50,7 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   process.stdout.write(
-    `Verified ${checkedLinks} local Markdown links across ${markdownFiles.length} files.\n`,
+    `Verified ${checkedLinks} local Markdown links across ${markdownFiles.length} files; skipped ${skippedExternalLinks} repository-external links.\n`,
   );
 }
 

@@ -1,6 +1,7 @@
 # M3 Kafka dispatch and worker claims plan
 
-Status: active
+Status: complete
+Completion evidence: [M3 completion report](../reports/session-2026-09-14-m3-handoff.md)
 
 Baseline commit: `f79286495c6ed892f8960824b438b5259e3ac746`
 

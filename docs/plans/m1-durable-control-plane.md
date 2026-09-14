@@ -3,6 +3,7 @@
 Status: complete
 Owner: PreviewForge delivery
 Source: [delivery roadmap](../delivery/roadmap.md), [system design](../architecture/system-design.md), [ADR 0002](../architecture/decisions/0002-postgres-outbox-and-kafka.md)
+Completion evidence: [backlog archive](../backlog/archive.md) and the M1 session reports under [project reports](../reports/index.md)
 
 ## Outcome
 

@@ -18,6 +18,25 @@ export {
   InstallationOwnershipConflictError,
 } from "./auth-installation-repository.js";
 export type {
+  DeploymentClaimConflictCode,
+  DeploymentClaimInput,
+  DeploymentClaimResult,
+  KafkaDeliveryIdentity,
+  KafkaDeliveryNotClaimableCode,
+  KafkaDeliveryOutcomeInput,
+  KafkaDeliveryOutcomeResult,
+  LeaseInput,
+} from "./deployment-claim-repository.js";
+export {
+  DeploymentClaimConflictError,
+  DeploymentClaimRepository,
+  DeploymentClaimValidationError,
+  KafkaDeliveryIdentityConflictError,
+  KafkaDeliveryNotClaimableError,
+  KafkaDeliveryOutcomeConflictError,
+  LeaseFenceError,
+} from "./deployment-claim-repository.js";
+export type {
   DeploymentIntentResult,
   DeploymentRequestedPayload,
 } from "./deployment-intent.js";
@@ -40,22 +59,6 @@ export {
   DeploymentTransitionError,
   transitionDeployment,
 } from "./deployment-repository.js";
-export type {
-  DeploymentClaimInput,
-  DeploymentClaimResult,
-  KafkaDeliveryIdentity,
-  KafkaDeliveryNotClaimableCode,
-  KafkaDeliveryOutcomeInput,
-  LeaseInput,
-} from "./deployment-claim-repository.js";
-export {
-  DeploymentClaimConflictError,
-  DeploymentClaimRepository,
-  DeploymentClaimValidationError,
-  KafkaDeliveryIdentityConflictError,
-  KafkaDeliveryNotClaimableError,
-  LeaseFenceError,
-} from "./deployment-claim-repository.js";
 export type {
   MarkPublishedResult,
   OutboxClaimOptions,

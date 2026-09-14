@@ -15,6 +15,13 @@ Repository içindeki [Codex Çalışma Protokolü](docs/process/codex-calisma-pr
 - For control-plane, webhook, event, or deployment-state work, also read `.agents/skills/previewforge-control-plane/SKILL.md`.
 - For Kubernetes, BuildKit, routing, or workload security work, also read `.agents/skills/previewforge-kubernetes/SKILL.md`.
 
+## Context loading
+
+- Start with this file, then load only the skill and source documents named by the task. Do not read all reports, plans, or session history by default.
+- Use `docs/delivery/roadmap.md` for milestone status, `docs/backlog/active.md` for unfinished work and next actions, `docs/plans/` for execution contracts, `docs/architecture/` and ADRs for durable design decisions, and `docs/reports/` for verified historical evidence.
+- Treat `docs/knowledge/previewforge-memory.md` as a compact discovery index. It must not become a second progress tracker or a copy of the full invariant set.
+- For sub-agents, pass a bounded handoff containing objective, owned paths, forbidden paths, relevant sources, accepted decisions, acceptance criterion, baseline, and exact verification command. Do not pass unrelated session history.
+
 ## Working agreements
 
 - Follow `.agents/skills/previewforge-delivery/SKILL.md`: add unfinished work to `docs/backlog/active.md` before handoff and archive only with evidence.

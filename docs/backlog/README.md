@@ -25,9 +25,13 @@ status: queued | in-progress | blocked | needs-review
 title: short imperative title
 owner: agent or role
 depends_on: []
+acceptance_ref: docs/plans/mx-plan.md#SLICE-ID
+owned_paths: [path/owned/by/slice]
+verification_command: exact command or `not-run` when dependencies are not ready
 next_action: concrete next edit or command
 acceptance: observable proof of completion
 evidence: command, test, link, or not-run reason
+evidence_commit: commit/tree identifier or `not-run` until root verification
 ```
 
 Archive entries keep the same ID plus `completed_on`, `evidence`, and `changed_files`. Completed entries do not belong in `active.md`.

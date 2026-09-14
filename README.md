@@ -6,7 +6,7 @@ The first release supports one GitHub repository, one Dockerfile, one HTTP conta
 
 ## Status
 
-The repository is in M1, the durable control-plane phase. The PostgreSQL schema/migration and API configuration, request-correlation, structured-logging, and error-envelope slices are verified. Compare-and-set deployment transitions, transactional outbox writes, and PostgreSQL integration tests are next.
+The repository is in M4, the rootless image-build phase. M0, M1, M2, and M3 are complete and archived with evidence. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
 
 ## Architecture at a glance
 
@@ -77,4 +77,4 @@ pnpm check
 - `docs/reports` and `docs/knowledge`: verified project memory, incidents, decisions, research, and session distillations
 - `.agents/skills`: project-specific Codex delivery, control-plane, and Kubernetes skills
 
-Begin with [the MVP scope](docs/product/mvp-scope.md), [system design](docs/architecture/system-design.md), [M1 execution plan](docs/plans/m1-durable-control-plane.md), and [active backlog](docs/backlog/active.md).
+Begin with [the MVP scope](docs/product/mvp-scope.md), [system design](docs/architecture/system-design.md), [the roadmap](docs/delivery/roadmap.md), and [active backlog](docs/backlog/active.md). Use the backlog for next actions; use reports and [project memory](docs/knowledge/previewforge-memory.md) only when historical or durable context is needed.
