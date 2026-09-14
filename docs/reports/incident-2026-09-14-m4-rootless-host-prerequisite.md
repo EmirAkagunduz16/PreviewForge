@@ -3,7 +3,7 @@ id: RPT-2026-09-14-m4-rootless-host-prerequisite
 type: incident
 status: verified
 date: 2026-09-14
-vault_sync: pending
+vault_sync: synced
 ---
 
 # M4 rootless BuildKit host prerequisite
@@ -231,3 +231,4 @@ has passed yet.
 - [M4 runner prerequisite](../infrastructure/m4-rootless-buildkit.md)
 - [M4 active backlog](../backlog/active.md)
 - [ADR 0004](../architecture/decisions/0004-rootless-buildkit.md)
+- [VictusOS M4 handoff](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-14%20M4%20Hosted%20Acceptance%20Handoff.md)
