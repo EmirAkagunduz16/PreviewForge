@@ -11,7 +11,12 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
+      KAFKA_BROKERS: localhost:59092
+      KAFKA_CLIENT_ID: previewforge-ci
+      KAFKA_GROUP_ID: previewforge-worker-ci
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,8 +28,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Generate Prisma Client
+        # Prisma 7 loads prisma.config.ts during generation; no connection is opened.
         run: pnpm generate
-        env:
-          # Prisma 7 loads prisma.config.ts during generation; no connection is opened.
-          DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
+      - name: Start integration infrastructure
+        run: pnpm infra:up
+      - name: Apply database migrations
+        run: pnpm --filter @previewforge/database migrate:deploy
       - run: pnpm check
+      - name: Stop integration infrastructure
+        if: always()
+        run: pnpm infra:down --volumes --remove-orphans
