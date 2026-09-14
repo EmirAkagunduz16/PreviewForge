@@ -72,11 +72,11 @@ configuration; partial configuration fails closed.
   `buildctl`, `buildkitd`, `slirp4netns`, and `fuse-overlayfs` are absent; AppArmor reports
   `kernel.apparmor_restrict_unprivileged_userns=1`; no dedicated `previewforge` subuid/subgid
   entries are present; profile inspection requires elevated privilege.
-- GitHub repository runner inventory is empty; no `previewforge-rootless` self-hosted runner is
-  currently registered, so the manual workflow has no eligible execution target.
+- The earlier self-hosted runner inventory was empty; the acceptance design now removes that
+  dependency and targets GitHub-hosted `ubuntu-24.04` instead.
 - Repository-side preparation is complete: the disposable Ubuntu 24.04 runbook, pinned image
   reference, checksum-pinned BuildKit binary installer, prerequisite audit, narrow AppArmor
-  profile template, and ephemeral runner workflow are present under `infrastructure/m4-runner/`,
+  profile template, hosted-runner workflow, and immutable version manifest are present under `infrastructure/m4-runner/`,
   `scripts/m4-runner/`, and `.github/workflows/`.
 - Worker consumer/pipeline unit suite: 10 files/98 tests passed, including duplicate-lease
   suppression.
@@ -111,12 +111,23 @@ unreachable from the BuildKit namespace. The canonical design is now a single Ro
 This topology is documented in the [canonical runner runbook](../../infrastructure/m4-runner/README.md)
 and is the only endpoint model accepted for the M4 workflow.
 
+## Hosted-runner decision
+
+The external VM/self-hosted runner path was removed because the repository is public and GitHub's
+standard `ubuntu-24.04` job already provides a fresh disposable VM. The workflow now provisions
+the dedicated user, subuid/subgid range, AppArmor profile, checksum-pinned BuildKit binary, and
+checksum-pinned Distribution registry inside the job. It first requires the hosted kernel to
+expose `kernel.apparmor_restrict_unprivileged_userns=1` and AppArmor enabled; any mismatch fails
+closed instead of widening policy. The small fixture fits the hosted runner's documented 14-GB
+SSD, so the former 40-GB external-VM requirement is no longer canonical.
+
 ## Prevention / next action
 
 Provision an explicitly authorized disposable Ubuntu 24.04 runner with the policy already
-configured, run the checksum-pinned stack from the canonical operator runbook, and execute the
-real build/registry acceptance matrix. Do not weaken the build by mounting a Docker socket or
-enabling insecure/privileged entitlements.
+configured, run the checksum-pinned stack from the hosted workflow, and execute the real
+build/registry acceptance matrix. If the hosted image fails the AppArmor preflight or
+`--profile-test`, report it as an infrastructure blocker rather than widening security policy.
+Do not weaken the build by mounting a Docker socket or enabling insecure/privileged entitlements.
 
 ## Related links
 

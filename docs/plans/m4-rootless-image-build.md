@@ -27,7 +27,7 @@ checks, or claim a production multi-tenant sandbox.
   persisted only after push and still guarded by the deployment's desired SHA.
 - Apply bounded wall time, CPU, memory, disk/context, and log output. User build failures are
   durable stage failures and are not retried indiscriminately.
-- For the disposable acceptance runner, keep the registry and rootless `buildkitd` in one
+- For the GitHub-hosted disposable acceptance runner, keep the registry and rootless `buildkitd` in one
   RootlessKit `slirp4netns` namespace. BuildKit pushes to `127.0.0.1:5000` inside that
   namespace; the runner uses only
   `unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and the RootlessKit loopback forward

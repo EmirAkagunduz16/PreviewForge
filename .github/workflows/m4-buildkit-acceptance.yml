@@ -8,13 +8,80 @@ permissions:
 
 jobs:
   buildkit-acceptance:
-    # This label must point to an ephemeral Ubuntu runner provisioned according
-    # to docs/infrastructure/m4-rootless-buildkit.md. It must not be a broad
-    # shared or privileged runner.
-    runs-on: [self-hosted, previewforge-rootless]
-    timeout-minutes: 20
+    # GitHub provisions a fresh VM for every ubuntu-24.04 job in this public
+    # repository. The job provisions only its disposable rootless toolchain.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify hosted runner security baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          [[ "${ID:-}" == ubuntu && "${VERSION_ID:-}" == 24.04 ]] || {
+            echo "M4 requires Ubuntu 24.04; got ${ID:-unknown} ${VERSION_ID:-unknown}" >&2
+            exit 1
+          }
+          sudo -n true
+          userns_policy="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || true)"
+          echo "kernel.apparmor_restrict_unprivileged_userns=${userns_policy:-unavailable}"
+          [[ "$userns_policy" == 1 ]] || {
+            echo 'M4 blocker: hosted runner does not expose the expected AppArmor userns policy (1)' >&2
+            exit 1
+          }
+          command -v aa-status >/dev/null || {
+            echo 'M4 blocker: aa-status is unavailable on the hosted image' >&2
+            exit 1
+          }
+          sudo aa-status --enabled || {
+            echo 'M4 blocker: AppArmor is not enabled on the hosted image' >&2
+            exit 1
+          }
+          df -h /
+
+      - name: Provision rootless BuildKit prerequisites
+        run: sudo ./scripts/m4-runner/provision-ubuntu.sh
+
+      - name: Install pinned BuildKit and registry binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          source infrastructure/m4-runner/versions.env
+          sudo env \
+            BUILDKIT_VERSION="$BUILDKIT_VERSION" \
+            BUILDKIT_ARCH="$BUILDKIT_ARCH" \
+            BUILDKIT_TARBALL_SHA256="$BUILDKIT_TARBALL_SHA256" \
+            ./scripts/m4-runner/install-buildkit-binaries.sh
+          sudo env \
+            REGISTRY_TARBALL_URL="$REGISTRY_TARBALL_URL" \
+            REGISTRY_TARBALL_SHA256="$REGISTRY_TARBALL_SHA256" \
+            ./scripts/m4-runner/install-registry-binary.sh
+
+      - name: Verify rootless prerequisites and AppArmor profile
+        run: sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test
+
+      - name: Start rootless BuildKit and registry
+        run: sudo -u previewforge-buildkit ./scripts/m4-runner/start-rootless-stack.sh
+
+      - name: Smoke-check loopback registry and Unix BuildKit socket
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:5000/v2/ >/dev/null \
+              && sudo -u previewforge-buildkit buildctl \
+                --addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock \
+                debug workers; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'M4 blocker: rootless registry or BuildKit socket did not become ready' >&2
+          sudo -u previewforge-buildkit cat /var/tmp/previewforge-buildkit/rootless-stack.log || true
+          exit 1
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10.28.2
@@ -23,9 +90,30 @@ jobs:
           node-version: 22.18.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
       - name: Run real BuildKit and registry acceptance
+        shell: bash
         env:
-          BUILDKIT_ADDR: ${{ vars.PREVIEWFORGE_BUILDKIT_ADDR }}
-          REGISTRY_URL: ${{ vars.PREVIEWFORGE_REGISTRY_URL }}
-          REGISTRY_PROTOCOL: ${{ vars.PREVIEWFORGE_REGISTRY_PROTOCOL || 'https' }}
-        run: pnpm test:acceptance:build
+          BUILDKIT_ADDR: unix:///var/tmp/previewforge-buildkit/buildkitd.sock
+          REGISTRY_URL: 127.0.0.1:5000
+          REGISTRY_PROTOCOL: http
+        run: |
+          set -euo pipefail
+          pnpm_bin="$(command -v pnpm)"
+          sudo -u previewforge-buildkit env \
+            HOME=/home/previewforge-buildkit \
+            PATH="$PATH" \
+            BUILDKIT_ADDR="$BUILDKIT_ADDR" \
+            REGISTRY_URL="$REGISTRY_URL" \
+            REGISTRY_PROTOCOL="$REGISTRY_PROTOCOL" \
+            "$pnpm_bin" test:acceptance:build
+
+      - name: Cleanup rootless BuildKit and registry
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if id previewforge-buildkit >/dev/null 2>&1; then
+            sudo -u previewforge-buildkit ./scripts/m4-runner/stop-rootless-stack.sh
+          fi
+          sudo rm -rf /var/tmp/previewforge-buildkit /var/tmp/previewforge-registry
