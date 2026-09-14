@@ -17,6 +17,8 @@ profile previewforge-rootlesskit /usr/bin/rootlesskit flags=(attach_disconnected
 
   /usr/bin/rootlesskit rix,
   /usr/bin/buildkitd rix,
+  /usr/local/bin/buildkitd rix,
+  /usr/local/bin/registry rix,
   /usr/bin/slirp4netns rix,
   /usr/bin/fuse-overlayfs rix,
   /usr/bin/newuidmap px,
@@ -31,6 +33,7 @@ profile previewforge-rootlesskit /usr/bin/rootlesskit flags=(attach_disconnected
   /etc/ssl/** r,
   /run/user/** rwk,
   /var/tmp/previewforge-buildkit/** rwk,
+  /var/tmp/previewforge-registry/** rwk,
   /tmp/previewforge-buildkit/** rwk,
   /proc/** r,
   /sys/** r,

@@ -1,0 +1,13 @@
+version: 0.1
+log:
+  level: info
+storage:
+  filesystem:
+    rootdirectory: /var/tmp/previewforge-registry/data
+  delete:
+    enabled: true
+http:
+  # This loopback exists only inside the shared rootless network namespace.
+  # RootlessKit forwards the port to host loopback; it is never bound to a host
+  # NIC or a public/private VM interface.
+  addr: 127.0.0.1:5000

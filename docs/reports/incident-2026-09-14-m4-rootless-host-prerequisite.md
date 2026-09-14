@@ -90,13 +90,31 @@ or CI runner permits rootless user namespaces. Enabling the AppArmor policy is a
 system change and is intentionally not performed implicitly. The local registry remains
 available, but a registry alone is not a build proof.
 
+## Network topology decision
+
+The first runner draft described a private TCP BuildKit endpoint while also using a rootless
+network with host loopback disabled. That left the registry's `127.0.0.1:5000` address
+unreachable from the BuildKit namespace. The canonical design is now a single RootlessKit
+`slirp4netns` namespace containing both the rootless registry and `buildkitd`:
+
+- the registry binds `127.0.0.1:5000` **inside** that namespace;
+- RootlessKit keeps `--disable-host-loopback` and forwards only
+  `127.0.0.1:5000:5000/tcp` to the VM's host loopback;
+- BuildKit pushes to `127.0.0.1:5000` in its own shared namespace;
+- the runner reaches BuildKit only through
+  `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`;
+- no BuildKit TCP listener, VM-interface bind, public registry bind, privileged mode, Docker
+  socket, or global AppArmor/sysctl relaxation is used.
+
+This topology is documented in the [canonical runner runbook](../../infrastructure/m4-runner/README.md)
+and is the only endpoint model accepted for the M4 workflow.
+
 ## Prevention / next action
 
-Provide an explicitly authorized host/CI prerequisite that permits rootlesskit user namespaces,
-or select a dedicated rootless BuildKit runner with that policy already configured. Then add the
-pinned BuildKit service to local infrastructure, implement the narrow adapter, and run the real
-build/registry acceptance matrix. Do not weaken the build by mounting a Docker socket or enabling
-insecure/privileged entitlements.
+Provision an explicitly authorized disposable Ubuntu 24.04 runner with the policy already
+configured, run the checksum-pinned stack from the canonical operator runbook, and execute the
+real build/registry acceptance matrix. Do not weaken the build by mounting a Docker socket or
+enabling insecure/privileged entitlements.
 
 ## Related links
 

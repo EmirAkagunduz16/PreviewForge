@@ -25,7 +25,7 @@ else
   failures=$((failures + 1))
 fi
 
-for command_name in rootlesskit newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl aa-status aa-enforce; do
+for command_name in rootlesskit newuidmap newgidmap slirp4netns fuse-overlayfs buildkitd buildctl registry aa-status aa-enforce; do
   check_command "$command_name"
 done
 

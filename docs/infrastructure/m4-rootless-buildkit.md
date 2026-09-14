@@ -1,69 +1,106 @@
 # M4 rootless BuildKit runner prerequisite
 
 This is an infrastructure prerequisite, not application behavior. The worker must never alter
-kernel, AppArmor, subuid/subgid, Docker, or container-runtime policy at startup.
+kernel, AppArmor, subuid/subgid, Docker, or container-runtime policy. The complete operator
+procedure is [the M4 runner runbook](../../infrastructure/m4-runner/README.md).
 
-## Preferred runner
+## Required runner
 
-Run M4 build acceptance on an ephemeral Ubuntu runner or a dedicated disposable VM with:
+Use a fresh, disposable Ubuntu Server 24.04 LTS (amd64) VM with at least 4 vCPU, 8 GiB RAM,
+and a 40 GiB disk. Install `uidmap` (`newuidmap`/`newgidmap`), `rootlesskit`, `slirp4netns`,
+`fuse-overlayfs`, checksum-pinned BuildKit and registry binaries, and a dedicated unprivileged
+`previewforge-buildkit` account with a non-overlapping range such as:
 
-- `uidmap` (`newuidmap` and `newgidmap`), `rootlesskit`, `slirp4netns`, and `fuse-overlayfs`;
-- a dedicated unprivileged runner account (for example `previewforge-buildkit`);
-- `/etc/subuid` and `/etc/subgid` entries for only that account, with a dedicated range of at
-  least 65,536 IDs, for example:
+```text
+previewforge-buildkit:100000:65536
+```
 
-  ```text
-  previewforge-buildkit:100000:65536
-  ```
+The supplied provisioning and prerequisite scripts are intended for this disposable VM only.
+They reject a global `kernel.apparmor_restrict_unprivileged_userns=0` and never use
+`--privileged`, `apparmor=unconfined`, `seccomp=unconfined`, host networking, or a Docker socket.
 
-- a rootless BuildKit daemon pinned by image digest, reachable only on the runner's private
-  network;
-- an OCI registry endpoint reachable from that daemon, preferably TLS-enabled even on CI;
-- automatic VM/container teardown after the acceptance job.
+## Canonical network topology
 
-The range must not overlap another service's allocation. The runner image and the exact range
-are infrastructure configuration and must be recorded by CI, never inferred by the worker.
+```text
+runner process (VM host namespace)
+  |-- Unix: /var/tmp/previewforge-buildkit/buildkitd.sock
+  |-- 127.0.0.1:5000 --RootlessKit builtin port forward-->
+  v
+RootlessKit --net=slirp4netns --disable-host-loopback
+  |-- registry 127.0.0.1:5000       (inside this namespace)
+  `-- buildkitd Unix socket          (same namespace/filesystem)
+          `-- pushes to 127.0.0.1:5000
+```
 
-## AppArmor policy
+The registry listens only on loopback **inside** the RootlessKit namespace. RootlessKit forwards
+only `127.0.0.1:5000:5000/tcp` to the VM's loopback. It is not bound to `0.0.0.0`, a VM
+private interface, or a public interface. `--disable-host-loopback` stays enabled, preventing
+BuildKit from reaching unrelated host-loopback services. BuildKit has no TCP listener; the
+runner uses the Unix socket.
 
-Do not set `kernel.apparmor_restrict_unprivileged_userns=0` globally. Do not use
-`--privileged`, `apparmor=unconfined`, or `seccomp=unconfined` as a shortcut.
+This is consistent with RootlessKit's upstream port-driver contract: the builtin driver forwards
+namespace ports to the parent, and its default child address is `127.0.0.1` ([port API](https://pkg.go.dev/github.com/rootless-containers/rootlesskit/v3/pkg/port#Spec)).
 
-Install and load a named AppArmor profile scoped to the rootlesskit/BuildKit runner on the
-ephemeral runner only. The profile must explicitly mediate the user namespace operation (`userns`
-rule), permit only the BuildKit rootless binary and its child runtime paths, and deny access to
-Docker sockets, host credentials, unrelated host paths, and platform control-plane sockets. The
-profile must be reviewed with the runner image and exercised by a negative test before acceptance.
+Therefore the acceptance endpoints are fixed:
 
-The exact profile is distro/kernel/container-runtime dependent. A profile that needs broad
-unconfined mediation is not an acceptable M4 prerequisite; use a disposable runner image and
-tighten the rule set until the BuildKit smoke and the privilege-denial tests both pass.
+```text
+BuildKit -> registry: 127.0.0.1:5000 (inside the shared rootless namespace)
+runner -> BuildKit:    unix:///var/tmp/previewforge-buildkit/buildkitd.sock
+runner -> registry:    http://127.0.0.1:5000 (RootlessKit loopback forward)
+```
 
-## BuildKit launch contract
+## AppArmor boundary
 
-- Pin `moby/buildkit` by a multi-architecture digest, not `:latest`.
-- Expose only the private BuildKit endpoint required by the worker; never mount
-  `/var/run/docker.sock`.
-- Do not enable insecure or privileged BuildKit entitlements.
-- Configure explicit CPU, memory, disk, wall-time, and log limits at the runner/daemon boundary.
-- Provide registry credentials through the BuildKit credential mechanism only when required;
-  never put them in Dockerfile args, source context, image layers, or worker logs.
-- Tear down the daemon and delete its temporary cache/context after the job.
+Load the named `previewforge-rootlesskit` profile on the ephemeral runner and test it against
+the exact Ubuntu kernel. It permits only the rootless runtime, BuildKit, the registry binary,
+their required runtime paths, and the dedicated temporary directories. It denies Docker sockets,
+host credentials, and unrelated platform paths. The profile is not a replacement for the VM
+boundary and must not be broadened to an unconfined profile.
+
+## BuildKit and registry launch contract
+
+The runbook installs release binaries with explicit version and SHA-256 inputs. The stack launcher
+starts both processes under one RootlessKit invocation:
+
+```bash
+sudo -u previewforge-buildkit ./scripts/m4-runner/start-rootless-stack.sh
+```
+
+The launcher uses:
+
+```text
+rootlesskit --net=slirp4netns --disable-host-loopback \
+  --port-driver=builtin --publish 127.0.0.1:5000:5000/tcp
+```
+
+The registry config binds `127.0.0.1:5000` inside that namespace. BuildKit is started with
+`--addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and no insecure entitlements.
+
+## Repository variables
+
+Set these GitHub repository **variables** for the manual workflow:
+
+```text
+PREVIEWFORGE_BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock
+PREVIEWFORGE_REGISTRY_URL=127.0.0.1:5000
+PREVIEWFORGE_REGISTRY_PROTOCOL=http
+```
+
+They are endpoint values, not credentials. The disposable loopback registry needs no secret.
 
 ## Acceptance gate
 
-The gate is blocked until the runner can execute the real test:
+Run the manually dispatched [M4 rootless BuildKit workflow](../../.github/workflows/m4-buildkit-acceptance.yml)
+on the one-time `previewforge-rootless` ephemeral runner. The equivalent command is:
 
-```text
-BUILDKIT_ADDR=<private endpoint> REGISTRY_URL=<registry host> REGISTRY_PROTOCOL=https pnpm test:acceptance:build
+```bash
+BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock \
+REGISTRY_URL=127.0.0.1:5000 \
+REGISTRY_PROTOCOL=http \
+pnpm test:acceptance:build
 ```
 
-The test must build a fixture Dockerfile, push it, read the registry manifest by the returned
-`sha256:` digest, assert the registry's `Docker-Content-Digest` matches, and delete the fixture
-manifest. It must also include a negative privilege/credential-boundary case. A local host that
-only passes after changing the global kernel sysctl is not valid evidence.
-
-The repository provides [the manual M4 workflow](../../.github/workflows/m4-buildkit-acceptance.yml)
-for an ephemeral runner labeled `previewforge-rootless`. Configure only the private endpoint
-values as runner/environment variables (`PREVIEWFORGE_BUILDKIT_ADDR` and
-`PREVIEWFORGE_REGISTRY_URL`); do not place credentials in workflow arguments or logs.
+The test must build and push a fixture, return an immutable `sha256:<64 hex>` digest, fetch the
+manifest by that digest, and verify a matching `Docker-Content-Digest`. It must also clean the
+fixture and exercise the credential/privilege boundary. Until the real workflow passes on the
+disposable runner, M4 remains blocked and no completion claim is valid.

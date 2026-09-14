@@ -26,10 +26,10 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
   owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: After the authorized rootless runner prerequisite is available, run the new `test:build:integration` against the pinned BuildKit endpoint and local registry.
+  next_action: Provision the authorized disposable Ubuntu 24.04 `previewforge-rootless` runner from the canonical runbook, then run the new `test:build:integration` against the shared-namespace Unix socket and loopback registry.
   blocker: Local host has no `buildctl`, `buildkitd`, `slirp4netns`, or `fuse-overlayfs`, has no dedicated previewforge subuid/subgid entries, and keeps `apparmor_restrict_unprivileged_userns=1`; the pinned rootless image cannot start under this policy. GitHub currently has no registered `previewforge-rootless` runner. Enabling a host policy is a privileged system change and is not being performed implicitly.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. The opt-in real test was re-run locally and failed closed as `BUILDKIT_UNAVAILABLE` because `buildctl`/rootless BuildKit is unavailable; no build or push is claimed. Full `pnpm check` passed; the manual self-hosted `previewforge-rootless` workflow and repeatable Ubuntu provisioning/check/install scripts now gate the real acceptance.
+  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. The opt-in real test was re-run locally and failed closed as `BUILDKIT_UNAVAILABLE` because `buildctl`/rootless BuildKit is unavailable; no build or push is claimed. Full `pnpm check` passed; the manual self-hosted `previewforge-rootless` workflow and repeatable Ubuntu provisioning/check/install scripts now gate the real acceptance. The canonical runner topology uses `unix:///var/tmp/previewforge-buildkit/buildkitd.sock` and a RootlessKit-forwarded `127.0.0.1:5000` registry.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
