@@ -44,7 +44,8 @@ The registry is loopback-only inside the shared RootlessKit namespace. The canon
 
 This is deliberate plain HTTP for an isolated disposable registry. It does not use
 `insecure = true`, global AppArmor/sysctl relaxation, `--privileged`, `apparmor=unconfined`,
-`seccomp=unconfined`, Docker socket mounts, or host networking.
+`seccomp=unconfined`, Docker socket mounts, or host networking. A hosted image may have Docker
+installed, but the dedicated user must not be able to access its socket.
 
 ## Workflow sequence
 

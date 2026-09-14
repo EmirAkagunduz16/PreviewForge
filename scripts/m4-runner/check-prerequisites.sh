@@ -58,10 +58,15 @@ if [[ "$profile_test" == 1 ]]; then
     printf 'previewforge-rootlesskit AppArmor profile is not active\n' >&2
     failures=$((failures + 1))
   }
-  if [[ -S /var/run/docker.sock || -S /run/docker.sock ]]; then
-    printf 'Docker socket must not be present in the BuildKit trust zone\n' >&2
-    failures=$((failures + 1))
-  fi
+  for docker_socket in /var/run/docker.sock /run/docker.sock; do
+    if [[ -S "$docker_socket" ]] && {
+      sudo -u previewforge-buildkit test -r "$docker_socket" ||
+        sudo -u previewforge-buildkit test -w "$docker_socket";
+    }; then
+      printf 'previewforge-buildkit can access Docker socket: %s\n' "$docker_socket" >&2
+      failures=$((failures + 1))
+    fi
+  done
 fi
 
 if (( failures > 0 )); then

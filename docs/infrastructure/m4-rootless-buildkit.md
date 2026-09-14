@@ -29,7 +29,9 @@ and `kernel.apparmor_restrict_unprivileged_userns=1`. Provisioning then installs
 
 The workflow never sets `kernel.apparmor_restrict_unprivileged_userns=0`, uses `--privileged`,
 `apparmor=unconfined`, `seccomp=unconfined`, host networking, a Docker socket, or a BuildKit TCP
-listener.
+listener. A hosted image may contain a Docker daemon for unrelated actions; the prerequisite
+check fails only if the dedicated BuildKit user can access that socket, and the AppArmor profile
+still denies it to the rootless stack.
 
 ## Canonical topology
 
