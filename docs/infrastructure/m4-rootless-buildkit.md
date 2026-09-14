@@ -47,6 +47,29 @@ listener. A hosted image may contain a Docker daemon for unrelated actions; the 
 check fails only if the dedicated BuildKit user can access that socket, and the AppArmor profile
 still denies it to the rootless stack.
 
+## Runtime configuration and client access boundary
+
+GitHub checkout files are not assumed to be readable by the restricted daemon user. Before the
+stack starts, the root-only staging step copies the two canonical repository templates into:
+
+```text
+/var/tmp/previewforge-buildkit/registry-config.yml
+/var/tmp/previewforge-buildkit/buildkitd.toml
+```
+
+Both generated files are owned by `previewforge-buildkit:previewforge-buildkit` with mode `0600`.
+`start-rootless-stack.sh` reads only those staged paths; it never falls back to the checkout and
+fails closed if either artifact is absent or has different ownership/mode. The source templates
+remain unchanged in the repository.
+
+The daemon stays rootless, while the BuildKit test client runs as the normal GitHub checkout user
+so it can read `node_modules` and the test source without broadening repository or `.git`
+permissions. The runtime directory is setgid with execute-only access for that user's primary
+group, allowing access to the Unix socket but not directory listing or staged-config reads. The
+daemon/rootlesskit environment is constructed with an explicit allowlist containing only runtime
+paths, `PATH`, locale, and `HOME`; GitHub, platform, database, and registry credentials are not
+inherited. The client adapter independently scrubs its `buildctl` child environment.
+
 ## Canonical topology
 
 ```text

@@ -62,6 +62,13 @@ jobs:
       - name: Verify rootless prerequisites and AppArmor profile
         run: sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test
 
+      - name: Stage rootless runtime config
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo env BUILDKIT_CLIENT_GROUP="$(id -gn)" \
+            ./scripts/m4-runner/stage-rootless-runtime-config.sh
+
       - name: Start rootless BuildKit and registry
         run: sudo -u previewforge-buildkit ./scripts/m4-runner/start-rootless-stack.sh
 
@@ -71,7 +78,7 @@ jobs:
           set -euo pipefail
           for attempt in {1..30}; do
             if curl --fail --silent --show-error http://127.0.0.1:5000/v2/ >/dev/null \
-              && sudo -u previewforge-buildkit buildctl \
+              && buildctl \
                 --addr unix:///var/tmp/previewforge-buildkit/buildkitd.sock \
                 debug workers; then
               exit 0
@@ -104,14 +111,7 @@ jobs:
           REGISTRY_PROTOCOL: http
         run: |
           set -euo pipefail
-          pnpm_bin="$(command -v pnpm)"
-          sudo -u previewforge-buildkit env \
-            HOME=/home/previewforge-buildkit \
-            PATH="$PATH" \
-            BUILDKIT_ADDR="$BUILDKIT_ADDR" \
-            REGISTRY_URL="$REGISTRY_URL" \
-            REGISTRY_PROTOCOL="$REGISTRY_PROTOCOL" \
-            "$pnpm_bin" test:acceptance:build
+          pnpm test:acceptance:build
 
       - name: Cleanup rootless BuildKit and registry
         if: always()

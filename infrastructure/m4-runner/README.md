@@ -67,12 +67,21 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
 5. Run `sudo ./scripts/m4-runner/check-prerequisites.sh --profile-test`. This performs a separate
    fail-closed active/enforce check through `/sys/kernel/security/apparmor/profiles` (with an
    `aa-status` fallback) and does not mutate unrelated AppArmor profiles.
-6. Start the registry and BuildKit stack as `previewforge-buildkit`.
-7. Smoke-check `http://127.0.0.1:5000/v2/` and
+6. Stage the canonical registry and BuildKit configs with
+   `sudo ./scripts/m4-runner/stage-rootless-runtime-config.sh`. The generated files live under
+   `/var/tmp/previewforge-buildkit/`, are owned by `previewforge-buildkit`, and are mode `0600`.
+   The checkout is not readable by the restricted daemon user.
+7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
+   the staged runtime files and fails closed when either is missing or has the wrong ownership or
+   mode.
+8. Smoke-check `http://127.0.0.1:5000/v2/` and
    `unix:///var/tmp/previewforge-buildkit/buildkitd.sock`.
-8. Install pnpm/Node, install the locked dependencies, and run the real acceptance as the
-   dedicated unprivileged user.
-9. Use these fixed acceptance values:
+9. Install pnpm/Node, install the locked dependencies, and run the acceptance client as the
+   GitHub checkout user. The client uses only the Unix socket; the rootless daemon remains a
+   separate `previewforge-buildkit` process and its environment is an explicit credential-free
+   allowlist. The socket parent grants only execute access to the checkout user's primary group;
+   no repository or `.git` permissions are widened.
+10. Use these fixed acceptance values:
 
    ```text
    BUILDKIT_ADDR=unix:///var/tmp/previewforge-buildkit/buildkitd.sock
@@ -80,7 +89,7 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    REGISTRY_PROTOCOL=http
    ```
 
-10. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
+11. Run cleanup with `if: always()`, even when provisioning, smoke checks, or acceptance fails.
 
 The workflow's only external inputs are GitHub's hosted runner and the public release URLs in the
 version manifest. It does not request self-hosted registration or repository secrets.

@@ -150,6 +150,26 @@ check repeats that read-only active/enforce verification and fails closed if the
 missing or in another mode. No global AppArmor/sysctl change or unrelated profile mutation is
 performed.
 
+## Hosted checkout permission finding
+
+The next hosted run completed AppArmor provisioning and binary installation but failed when the
+rootless user tried to read `infrastructure/m4-runner/registry/config.yml` from the checkout.
+The checkout is owned by the GitHub runner account and is not a supported configuration source for
+the restricted daemon user. The fix is a root-only staging boundary:
+
+- canonical repository templates are copied to `/var/tmp/previewforge-buildkit/` before privilege
+  drop;
+- generated runtime configs are owned by `previewforge-buildkit:previewforge-buildkit` and mode
+  `0600`;
+- `start-rootless-stack.sh` reads only those staged paths and fails closed otherwise;
+- the acceptance client runs as the normal checkout user, reaching the daemon only through the
+  narrowly group-accessible Unix socket path, so no repository, `.git`, ACL, or recursive mode
+  change is required;
+- rootlesskit/buildkitd receive an explicit credential-free environment allowlist.
+
+The AppArmor profile remains unchanged because all runtime files and the socket stay below the
+existing `/var/tmp/previewforge-buildkit/**` allowlist.
+
 ## Related links
 
 - [M4 plan](../plans/m4-rootless-image-build.md)
