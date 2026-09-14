@@ -153,6 +153,8 @@ jobs:
         run: pnpm --filter @previewforge/database migrate:deploy
         env:
           DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
+      - name: Build database package
+        run: pnpm --filter @previewforge/database build
 
       - name: Build fixture, push registry, and verify immutable digest
         shell: bash
