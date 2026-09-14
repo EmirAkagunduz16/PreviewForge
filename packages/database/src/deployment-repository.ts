@@ -7,6 +7,7 @@ import {
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 const MAX_FAILURE_MESSAGE_LENGTH = 2_000;
+const IMAGE_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 
 export type DeploymentFailure = {
   stage: string;
@@ -22,6 +23,8 @@ export type DeploymentTransitionInput = {
   to: DeploymentStatus;
   /** The desired SHA captured by the caller and required for every transition. */
   expectedDesiredSha: string;
+  /** Immutable OCI digest returned after a successful registry push. */
+  imageDigest?: string;
   failure?: DeploymentFailure;
   occurredAt?: Date;
 };
@@ -196,6 +199,15 @@ function validateInput(input: DeploymentTransitionInput): void {
   } else if (input.failure) {
     throw new DeploymentTransitionError("failure details are only valid for FAILED transitions");
   }
+
+  if (input.imageDigest !== undefined) {
+    if (input.to !== "DEPLOYING") {
+      throw new DeploymentTransitionError("image digest is only accepted when entering DEPLOYING");
+    }
+    if (!IMAGE_DIGEST_PATTERN.test(input.imageDigest)) {
+      throw new DeploymentTransitionError("image digest must be an immutable sha256 digest");
+    }
+  }
 }
 
 function isTerminal(status: DeploymentStatus): boolean {
@@ -228,6 +240,7 @@ async function updateDeploymentWithGuards(
       failureCode: failure?.code ?? null,
       failureMessage: failure ? redactFailureMessage(failure.message) : null,
       failureRetryable: failure?.retryable ?? null,
+      ...(input.imageDigest === undefined ? {} : { imageDigest: input.imageDigest }),
       updatedAt: occurredAt,
       ...(input.to === "CLONING" ? { startedAt: occurredAt } : {}),
       // READY is terminal but can be superseded by a newer desired commit;

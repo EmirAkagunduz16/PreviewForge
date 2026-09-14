@@ -9,3 +9,6 @@
 | RPT-2026-09-13-session-m2-complete | session | verified | [M2 completion report](session-2026-09-13-m2-complete.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20M2%20Complete.md) |
 | RPT-2026-09-13-codex-working-protocol | decision | verified | [Codex working protocol](decision-2026-09-13-codex-working-protocol.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20Codex%20Calisma%20Protokolu.md) |
 | RPT-2026-09-13-serialization-retry-leak | incident | verified | [serialization retry incident](incident-2026-09-13-serialization-retry-leak.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20M2%20Complete.md) |
+| RPT-2026-09-13-context-engineering | decision | verified | [context engineering decision](decision-2026-09-13-context-engineering.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-13%20Context%20Engineering.md) |
+| RPT-2026-09-14-session-m3-handoff | session | verified | [M3 handoff report](session-2026-09-14-m3-handoff.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-14%20M3%20Handoff.md) |
+| RPT-2026-09-14-m4-rootless-host-prerequisite | incident | verified | [M4 rootless host prerequisite](incident-2026-09-14-m4-rootless-host-prerequisite.md) | pending |

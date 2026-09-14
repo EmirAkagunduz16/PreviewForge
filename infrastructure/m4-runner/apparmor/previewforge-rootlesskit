@@ -1,0 +1,48 @@
+#include <tunables/global>
+
+# This profile is loaded only on the disposable M4 runner. It deliberately does
+# not alter kernel.apparmor_restrict_unprivileged_userns globally.
+profile previewforge-rootlesskit /usr/bin/rootlesskit flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  userns,
+  network inet stream,
+  network inet6 stream,
+  capability setuid,
+  capability setgid,
+  capability sys_chroot,
+  capability sys_admin,
+  capability net_admin,
+  capability net_raw,
+
+  /usr/bin/rootlesskit rix,
+  /usr/bin/buildkitd rix,
+  /usr/bin/slirp4netns rix,
+  /usr/bin/fuse-overlayfs rix,
+  /usr/bin/newuidmap px,
+  /usr/bin/newgidmap px,
+  /usr/lib/** rix,
+  /lib/** rix,
+
+  /etc/subuid r,
+  /etc/subgid r,
+  /etc/hosts r,
+  /etc/resolv.conf r,
+  /etc/ssl/** r,
+  /run/user/** rwk,
+  /var/tmp/previewforge-buildkit/** rwk,
+  /tmp/previewforge-buildkit/** rwk,
+  /proc/** r,
+  /sys/** r,
+
+  # Keep platform and host credentials outside the BuildKit trust zone.
+  deny /var/run/docker.sock rwx,
+  deny /run/docker.sock rwx,
+  deny /etc/shadow r,
+  deny /etc/gshadow r,
+  deny /home/**/.ssh/** r,
+  deny /home/**/.aws/** r,
+  deny /home/**/.config/** r,
+  deny /var/lib/** rwx,
+  deny /etc/previewforge/** rwx,
+}

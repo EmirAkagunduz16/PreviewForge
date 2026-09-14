@@ -63,6 +63,27 @@ describe("loadWorkerConfig", () => {
     ).toEqual(["[::1]:59092"]);
   });
 
+  it("parses the all-or-nothing M4 build configuration", () => {
+    const configured = loadWorkerConfig({
+      ...validEnvironment,
+      GITHUB_APP_ID: "123",
+      GITHUB_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----",
+      GITHUB_API_BASE_URL: "https://api.github.com",
+      BUILDKIT_ADDR: "tcp://127.0.0.1:1234",
+      REGISTRY_HOST: "registry.local:5000",
+    });
+    expect(configured.build).toMatchObject({
+      githubAppId: "123",
+      githubApiBaseUrl: "https://api.github.com",
+      buildkitAddress: "tcp://127.0.0.1:1234",
+      registryHost: "registry.local:5000",
+    });
+    expect(configured.build?.githubPrivateKey).toContain("\n");
+    expect(() => loadWorkerConfig({ ...validEnvironment, GITHUB_APP_ID: "123" })).toThrow(
+      "M4 build configuration is incomplete",
+    );
+  });
+
   it("does not echo database credentials or client values in failures", () => {
     const secret = "database-password-that-must-not-echo";
     expect(() =>

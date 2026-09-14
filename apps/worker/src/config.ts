@@ -11,6 +11,15 @@ export type WorkerConfig = {
   kafkaClientId: string;
   kafkaGroupId: string;
   kafkaTopics: typeof DEFAULT_KAFKA_TOPICS;
+  build?: WorkerBuildConfig;
+};
+
+export type WorkerBuildConfig = {
+  githubAppId: string;
+  githubPrivateKey: string;
+  githubApiBaseUrl: string;
+  buildkitAddress: string;
+  registryHost: string;
 };
 
 /**
@@ -37,6 +46,7 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
   const kafkaClientId = requiredName(environment, "KAFKA_CLIENT_ID");
   const kafkaGroupId = requiredName(environment, "KAFKA_GROUP_ID");
   const brokers = parseKafkaBrokers(kafkaBrokerValue);
+  const build = parseBuildConfig(environment);
 
   return {
     nodeEnv,
@@ -45,7 +55,60 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
     kafkaClientId,
     kafkaGroupId,
     kafkaTopics: DEFAULT_KAFKA_TOPICS,
+    ...(build === undefined ? {} : { build }),
   };
+}
+
+function parseBuildConfig(environment: NodeJS.ProcessEnv): WorkerBuildConfig | undefined {
+  const names = [
+    "GITHUB_APP_ID",
+    "GITHUB_PRIVATE_KEY",
+    "GITHUB_API_BASE_URL",
+    "BUILDKIT_ADDR",
+    "REGISTRY_HOST",
+  ] as const;
+  const present = names.filter((name) => (environment[name] ?? "").trim().length > 0);
+  if (present.length === 0) return undefined;
+  if (present.length !== names.length) {
+    throw new Error("Invalid worker configuration: M4 build configuration is incomplete");
+  }
+  const githubAppId = requiredEnvironment(environment, "GITHUB_APP_ID");
+  if (!/^[1-9][0-9]*$/.test(githubAppId)) {
+    throw new Error("Invalid worker configuration: GITHUB_APP_ID is invalid");
+  }
+  const githubPrivateKey = requiredEnvironment(environment, "GITHUB_PRIVATE_KEY").replace(
+    /\\n/g,
+    "\n",
+  );
+  const githubApiBaseUrl = requiredOrigin(environment, "GITHUB_API_BASE_URL");
+  const buildkitAddress = requiredEnvironment(environment, "BUILDKIT_ADDR");
+  if (!(buildkitAddress.startsWith("tcp://") || buildkitAddress.startsWith("unix://"))) {
+    throw new Error("Invalid worker configuration: BUILDKIT_ADDR is invalid");
+  }
+  const registryHost = requiredEnvironment(environment, "REGISTRY_HOST");
+  if (!/^[A-Za-z0-9_.-]+(?::[0-9]+)?$/u.test(registryHost)) {
+    throw new Error("Invalid worker configuration: REGISTRY_HOST is invalid");
+  }
+  return { githubAppId, githubPrivateKey, githubApiBaseUrl, buildkitAddress, registryHost };
+}
+
+function requiredOrigin(environment: NodeJS.ProcessEnv, name: string): string {
+  const value = requiredEnvironment(environment, name);
+  try {
+    const url = new URL(value);
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    )
+      throw new Error();
+    return url.origin;
+  } catch {
+    throw new Error(`Invalid worker configuration: ${name} is invalid`);
+  }
 }
 
 function requiredEnvironment(environment: NodeJS.ProcessEnv, name: string): string {

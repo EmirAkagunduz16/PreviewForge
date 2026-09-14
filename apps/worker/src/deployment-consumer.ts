@@ -51,6 +51,11 @@ export type DeploymentConsumerOptions = {
   retryBaseDelayMs?: number;
   retryMaxDelayMs?: number;
   afterDatabaseCommitBeforeOffsetCommit?: () => Promise<void>;
+  /** Runs only for a newly claimed or lease-reclaimed deployment. It must persist its own terminal/stage outcome. */
+  afterClaim?: (
+    event: DeploymentRequested,
+    claim: Extract<DeploymentClaimResult, { kind: "CLAIMED" | "RECLAIMED" }>,
+  ) => Promise<"PROCESSED" | "SUPERSEDED" | "FAILED">;
 };
 
 export type DeploymentConsumerOutcome =
@@ -133,6 +138,15 @@ export async function handleDeploymentMessage(
       workerId: options.workerId,
       leaseTtlMs,
     });
+    if ((result.kind === "CLAIMED" || result.kind === "RECLAIMED") && options.afterClaim) {
+      const processing = await options.afterClaim(event, result);
+      if (processing === "FAILED") {
+        return await commitAfterDurableOutcome(record, options, "PROCESSED");
+      }
+      if (processing === "SUPERSEDED") {
+        return await commitAfterDurableOutcome(record, options, "SUPERSEDED");
+      }
+    }
     const outcomeKind = claimOutcomeKind(result);
     return await commitAfterDurableOutcome(record, options, outcomeKind);
   } catch (error) {

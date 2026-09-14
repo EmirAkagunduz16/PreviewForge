@@ -8,7 +8,10 @@
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "test": "pnpm test:unit",
-    "test:unit": "vitest run src --exclude 'src/**/*.integration.test.ts'",
+    "test:acceptance:restart": "vitest run src/m3-restart.acceptance.test.ts --no-file-parallelism",
+    "test:build:integration": "node -e \"if (!process.env.BUILDKIT_ADDR || !process.env.REGISTRY_URL) { console.error('BUILDKIT_ADDR and REGISTRY_URL are required for BuildKit integration tests'); process.exit(1); }\" && vitest run src/build/buildkit.integration.test.ts --no-file-parallelism",
+    "test:integration": "node -e \"if (!process.env.DATABASE_URL || !process.env.KAFKA_BROKERS) { console.error('DATABASE_URL and KAFKA_BROKERS are required for worker integration tests'); process.exit(1); }\" && vitest run src/m3.integration.test.ts --no-file-parallelism",
+    "test:unit": "vitest run src --exclude 'src/**/*.integration.test.ts' --exclude 'src/**/*.acceptance.test.ts'",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

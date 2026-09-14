@@ -123,6 +123,44 @@ function options(repository: FakeRepository, offsets: FakeOffsets) {
 }
 
 describe("handleDeploymentMessage", () => {
+  it("runs the build pipeline only after a new claim and commits its durable result", async () => {
+    const repository = new FakeRepository();
+    const offsets = new FakeOffsets();
+    const afterClaim = vi.fn(async () => "SUPERSEDED" as const);
+
+    await expect(
+      handleDeploymentMessage(record(), {
+        ...options(repository, offsets),
+        afterClaim,
+      }),
+    ).resolves.toEqual({ kind: "SUPERSEDED", committed: true });
+    expect(afterClaim).toHaveBeenCalledWith(
+      expect.objectContaining({ deploymentId: ids.deployment }),
+      expect.objectContaining({ kind: "CLAIMED", deploymentId: ids.deployment }),
+    );
+    expect(offsets.commits).toEqual([{ topic: record().topic, partition: 2, offset: "8" }]);
+  });
+
+  it("does not rerun the build pipeline for duplicate active delivery", async () => {
+    const repository = new FakeRepository();
+    repository.claimResult = {
+      kind: "DUPLICATE_ACTIVE_LEASE",
+      deploymentId: ids.deployment,
+      environmentId: ids.environment,
+      leaseGeneration: 1,
+    };
+    const offsets = new FakeOffsets();
+    const afterClaim = vi.fn(async () => "PROCESSED" as const);
+
+    await expect(
+      handleDeploymentMessage(record(), {
+        ...options(repository, offsets),
+        afterClaim,
+      }),
+    ).resolves.toEqual({ kind: "ALREADY_PROCESSED", committed: true });
+    expect(afterClaim).not.toHaveBeenCalled();
+  });
+
   it("does not commit while the durable claim is unresolved", async () => {
     const repository = new FakeRepository();
     const offsets = new FakeOffsets();

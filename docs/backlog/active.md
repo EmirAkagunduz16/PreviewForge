@@ -2,60 +2,60 @@
 
 Only unfinished work belongs here. Update this file before starting work and before handing off.
 
-## M3 — Kafka dispatch and worker claims
+## M4 — Rootless image build
 
 ```yaml
-- id: M3-CONTRACTS
+- id: M4-SOURCE
+  status: needs-review
+  title: Acquire a bounded repository archive outside the BuildKit trust zone
+  owner: root
+  depends_on: [M3]
+  acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-SOURCE
+  owned_paths: [apps/worker/src/source/, apps/worker/src/config.ts, apps/worker/src/source.test.ts]
+  verification_command: pnpm --filter @previewforge/worker test -- source
+  next_action: Root-review the source adapter boundary, then connect the materialized context to the deployment build orchestration.
+  acceptance: A private fixture archive is fetched with a short-lived installation token that cannot enter the build context, logs, or retained files.
+  evidence: Worker unit suite passed 9 files/93 tests; source-specific tests cover exact commit URL, auth redirect scrubbing, unsafe input rejection, bounded body, token-provider error redaction, stable 401/403/404/429/500 mapping, disposable tar extraction, Dockerfile validation, and cleanup. Typecheck, build, Biome, and diff check passed.
+  evidence_commit: not-run
+
+- id: M4-BUILDKIT
+  status: blocked
+  title: Execute Dockerfiles through a dedicated rootless BuildKit adapter
+  owner: root
+  depends_on: [M4-SOURCE]
+  acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
+  owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md]
+  verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
+  next_action: After the authorized rootless runner prerequisite is available, run the new `test:build:integration` against the pinned BuildKit endpoint and local registry.
+  blocker: Local host has no `buildctl`, `buildkitd`, `slirp4netns`, or `fuse-overlayfs`, has no dedicated previewforge subuid/subgid entries, and keeps `apparmor_restrict_unprivileged_userns=1`; the pinned rootless image cannot start under this policy. GitHub currently has no registered `previewforge-rootless` runner. Enabling a host policy is a privileged system change and is not being performed implicitly.
+  acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
+  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. The opt-in real test was re-run locally and failed closed as `BUILDKIT_UNAVAILABLE` because `buildctl`/rootless BuildKit is unavailable; no build or push is claimed. Full `pnpm check` passed; the manual self-hosted `previewforge-rootless` workflow and repeatable Ubuntu provisioning/check/install scripts now gate the real acceptance.
+  evidence_commit: not-run
+
+- id: M4-REGISTRY
   status: in-progress
-  title: Define strict versioned Kafka event and routing boundaries
-  owner: contracts
-  depends_on: [M2]
-  next_action: Implement the allow-listed event union, topic/header/key mapping, and adversarial identity tests.
-  acceptance: Malformed, unsupported, secret-bearing, or identity-inconsistent events cannot cross the Kafka boundary.
-  evidence: not-run
+  title: Push and persist an immutable OCI digest under the desired-SHA guard
+  owner: root
+  depends_on: [M4-BUILDKIT]
+  acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-REGISTRY
+  owned_paths: [apps/worker/src/build/, apps/worker/src/deployment-consumer.ts, packages/database/src/deployment-repository.ts]
+  verification_command: DATABASE_URL=<local redacted value> REGISTRY_URL=localhost:55000 pnpm --filter @previewforge/worker test:registry:integration
+  next_action: Add real Kafka/PostgreSQL duplicate, retry, and stale-SHA acceptance coverage; run it only after the authorized rootless BuildKit runner is available.
+  acceptance: Only the current desired commit can persist an OCI digest; stale builds are superseded and mutable tags never become deployment identity.
+  evidence: Runtime wiring now constructs ProjectRepository, GitHub installation-token provider, source client, BuildKit adapter, and the claimed-event pipeline when the complete M4 config is present; incomplete M4 config fails closed. DeploymentRepository validates and persists only `sha256:<64 hex>` digests on the desired-SHA-guarded `PUSHING -> DEPLOYING` transition. PostgreSQL integration suite passed 11 tests; worker unit suite passed 12 files/105 tests; targeted real Kafka/PostgreSQL claim-hook redelivery test passed.
+  evidence_commit: not-run
 
-- id: M3-DATA
-  status: in-progress
-  title: Add durable relay claims, deployment leases, delivery attempts, and dead-letter visibility
-  owner: database
-  depends_on: [M2]
-  next_action: Apply an additive M3 migration and prove constraints against real PostgreSQL.
-  acceptance: Existing data migrates and invalid claim, fencing, retry, receipt, or dead-letter states are rejected durably.
-  evidence: not-run
-
-- id: M3-OUTBOX
-  status: queued
-  title: Claim and settle outbox publication safely under at-least-once delivery
-  owner: outbox-relay
-  depends_on: [M3-CONTRACTS, M3-DATA]
-  next_action: Wait for Wave 1, then implement token-guarded claim, publish settlement, backoff, and dead-letter operations.
-  acceptance: Concurrent relays, expired claims, send failure, and ack-before-mark crash preserve every committed intent.
-  evidence: not-run
-
-- id: M3-CLAIMS
-  status: queued
-  title: Atomically receipt, fence, claim, renew, take over, and supersede deployments
-  owner: deployment-claims
-  depends_on: [M3-CONTRACTS, M3-DATA]
-  next_action: Wait for Wave 1, then implement the PostgreSQL command/lease transaction and concurrency tests.
-  acceptance: One fenced owner advances desired work; expired leases transfer safely; stale owners and stale SHAs cannot advance state.
-  evidence: not-run
-
-- id: M3-WORKER
-  status: queued
-  title: Run the Kafka relay and deployment consumer with classified bounded retry
-  owner: worker
-  depends_on: [M3-CONTRACTS, M3-DATA, M3-OUTBOX, M3-CLAIMS]
-  next_action: Implement transport adapters in parallel where independent, then wire them after database contracts stabilize.
-  acceptance: Offsets follow durable outcomes; duplicates are harmless; poison/exhausted messages become redacted PostgreSQL dead letters.
-  evidence: not-run
-
-- id: M3-ACCEPTANCE
-  status: queued
-  title: Prove restart, duplicate, lease, receipt, retry, and desired-SHA behavior end to end
-  owner: root-orchestrator
-  depends_on: [M3-OUTBOX, M3-CLAIMS, M3-WORKER]
-  next_action: Run real Kafka/PostgreSQL subprocess and container-restart acceptance plus deliberate guard faults after agents quiesce.
-  acceptance: Broker or worker restarts lose no intent and create no duplicate transition; all final proof and cleanup checks pass.
-  evidence: not-run
+- id: M4-ACCEPTANCE
+  status: blocked
+  title: Prove source, rootless build, registry, failure, timeout, and secret-boundary behavior end to end
+  owner: root
+  depends_on: [M4-SOURCE, M4-BUILDKIT, M4-REGISTRY]
+  acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
+  owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
+  verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
+  next_action: Run `pnpm test:acceptance` on an authorized rootless runner; it now includes M3 restart acceptance and the real BuildKit/registry manifest-digest test.
+  blocker: The BuildKit portion cannot start until rootlesskit user namespaces are permitted by a narrowly scoped runner/AppArmor profile.
+  acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
+  evidence: Harness added; repository `pnpm check` passed, but the BuildKit/registry leg remains not-run because the rootless BuildKit infrastructure prerequisite is unavailable.
+  evidence_commit: not-run
 ```

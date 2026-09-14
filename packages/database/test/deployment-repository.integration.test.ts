@@ -156,6 +156,53 @@ describe("DeploymentRepository (PostgreSQL)", () => {
     expect(JSON.stringify(event?.payload)).not.toContain(apiKey);
   });
 
+  it("persists only an immutable registry digest under the desired-SHA guard", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+
+    await repository.transition({
+      deploymentId: fixture.deploymentId,
+      expectedStatus: "QUEUED",
+      to: "CLONING",
+      expectedDesiredSha: fixture.commitSha,
+    });
+    await repository.transition({
+      deploymentId: fixture.deploymentId,
+      expectedStatus: "CLONING",
+      to: "BUILDING",
+      expectedDesiredSha: fixture.commitSha,
+    });
+    await repository.transition({
+      deploymentId: fixture.deploymentId,
+      expectedStatus: "BUILDING",
+      to: "PUSHING",
+      expectedDesiredSha: fixture.commitSha,
+    });
+
+    const digest = `sha256:${"a".repeat(64)}`;
+    const result = await repository.transition({
+      deploymentId: fixture.deploymentId,
+      expectedStatus: "PUSHING",
+      to: "DEPLOYING",
+      expectedDesiredSha: fixture.commitSha,
+      imageDigest: digest,
+    });
+    expect(result).toMatchObject({ applied: true });
+    expect(
+      await prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
+    ).toMatchObject({ status: "DEPLOYING", imageDigest: digest });
+
+    await expect(
+      repository.transition({
+        deploymentId: fixture.deploymentId,
+        expectedStatus: "DEPLOYING",
+        to: "WAITING_FOR_HEALTHCHECK",
+        expectedDesiredSha: fixture.commitSha,
+        imageDigest: "latest",
+      }),
+    ).rejects.toThrow(DeploymentTransitionError);
+  });
+
   it("never rewinds a terminal deployment", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);

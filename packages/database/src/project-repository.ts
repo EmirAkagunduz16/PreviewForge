@@ -35,6 +35,11 @@ export class ProjectIdentityConflictError extends Error {
 export class ProjectRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async findById(projectId: string): Promise<ProjectImportRecord | null> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    return project === null ? null : toProject(project);
+  }
+
   async importProject(input: ProjectImportInput): Promise<ProjectImportRecord> {
     const repositoryId = parseGitHubId(input.githubRepositoryId);
     const installation = await this.prisma.installation.findUnique({
