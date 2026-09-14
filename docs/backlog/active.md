@@ -24,12 +24,12 @@ Only unfinished work belongs here. Update this file before starting work and bef
   owner: root
   depends_on: [M4-SOURCE]
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-BUILDKIT
-  owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md]
+  owned_paths: [apps/worker/src/build/, infrastructure/local/compose.yaml, infrastructure/local/README.md, infrastructure/m4-runner/apparmor/previewforge-rootlesskit]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> pnpm --filter @previewforge/worker test:build:integration
-  next_action: Add only the AppArmor reads proven by run 34850233883 (`/etc/nsswitch.conf`, `/etc/passwd`, and the runtime root directory itself), rerun the hosted workflow, and inspect any subsequent exact denial before changing the profile again.
-  blocker: Hosted baseline, provisioning, pinned binary installation, profile verification, config staging, explicit confined-profile selection, and private state-directory selection pass. RootlessKit now reaches UID/GID-map setup but AppArmor denies reads of `/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/`; no broader permission change is authorized or implied.
+  next_action: Rerun the hosted workflow with the narrowly updated AppArmor profile and inspect any subsequent exact denial before changing the profile again.
+  blocker: The repository profile now permits only the three reads observed during UID/GID-map setup in hosted run 34850233883 (`/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/`), but the updated profile has not yet run on the disposable hosted runner.
   acceptance: Builds run without Docker socket, privileged/insecure entitlements, or unbounded wall time, resources, and logs.
-  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted run 34850233883 at `3126055` proved the confined `aa-exec` profile and explicit `/var/tmp/previewforge-buildkit/rootlesskit-state` advance past the earlier exec/state failures. Its kernel log records exact AppArmor denials for `/etc/nsswitch.conf`, `/etc/passwd`, and `/var/tmp/previewforge-buildkit/` during UID lookup. Clean PostgreSQL/Kafka `pnpm check`, AppArmor parser dry-run, shell syntax, docs, and diff checks passed; build/push remains not-run.
+  evidence: Adapter unit tests cover shell-free args, timeout/unavailable/failure classification, invalid digest rejection, and unsafe input. Hosted run 34850233883 at `3126055` proved the confined `aa-exec` profile and explicit `/var/tmp/previewforge-buildkit/rootlesskit-state` advance past the earlier exec/state failures. Its three exact read denials during UID/GID-map setup are now allowed in the repository profile; `apparmor_parser -Q -T`, M4 shell syntax, and `git diff --check` pass locally. Full `pnpm check` passed with database 78/78, API 1/1, and worker 5/5 integration tests. Updated hosted build/push remains not-run.
   evidence_commit: not-run
 
 - id: M4-REGISTRY
@@ -53,9 +53,9 @@ Only unfinished work belongs here. Update this file before starting work and bef
   acceptance_ref: docs/plans/m4-rootless-image-build.md#M4-ACCEPTANCE
   owned_paths: [apps/worker/src/m4.integration.test.ts, apps/worker/package.json, package.json, docs/reports/]
   verification_command: DATABASE_URL=<local redacted value> BUILDKIT_ADDR=<local redacted value> REGISTRY_URL=localhost:55000 pnpm test:acceptance
-  next_action: Resolve only the three exact AppArmor read denials from hosted run 34850233883, then require smoke-check plus build → push → immutable digest verification to pass.
-  blocker: Hosted kernel/AppArmor baseline and the confined profile pass, but RootlessKit is stopped during UID/GID-map setup by three read denials. Keep the slice blocked until the complete workflow is green.
+  next_action: Rerun the hosted workflow with the narrow UID-lookup read allowances, then require smoke-check plus build → push → immutable digest verification to pass.
+  blocker: The three proven AppArmor read denials are fixed in the repository profile but are not hosted-runner verified. Keep the slice blocked until the complete workflow is green.
   acceptance: Public/private fixture builds complete or fail safely, credentials never leak, retries are idempotent, stale work cannot publish, and cleanup leaves zero residue.
-  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, staging, explicit confined-profile selection, and private state-directory selection. Run 34850233883 exposed the next exact AppArmor read boundary before daemon readiness; no run has yet reached the real build/push/digest oracle.
+  evidence: Harness added; repository `pnpm check` passed against clean PostgreSQL/Kafka volumes with database 78/78, API 1/1, and worker 5/5 integration tests. Successive hosted runs have validated baseline, provisioning, pinned binary installation, profile verification, staging, explicit confined-profile selection, and private state-directory selection. Run 34850233883 exposed the three exact AppArmor reads now added to the profile; local parser and shell checks pass, but no updated run has yet reached the real build/push/digest oracle.
   evidence_commit: not-run
 ```

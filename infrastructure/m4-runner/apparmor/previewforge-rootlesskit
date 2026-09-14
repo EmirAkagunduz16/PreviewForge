@@ -32,10 +32,13 @@ profile previewforge-rootlesskit flags=(attach_disconnected,mediate_deleted) {
 
   /etc/subuid r,
   /etc/subgid r,
+  /etc/nsswitch.conf r,
+  /etc/passwd r,
   /etc/hosts r,
   /etc/resolv.conf r,
   /etc/ssl/** r,
   /run/user/** rwk,
+  /var/tmp/previewforge-buildkit/ r,
   /var/tmp/previewforge-buildkit/** rwk,
   /var/tmp/previewforge-registry/** rwk,
   /tmp/previewforge-buildkit/** rwk,

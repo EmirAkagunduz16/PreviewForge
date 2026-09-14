@@ -3,7 +3,7 @@ id: RPT-2026-09-14-m4-rootless-host-prerequisite
 type: incident
 status: verified
 date: 2026-09-14
-vault_sync: synced
+vault_sync: pending
 ---
 
 # M4 rootless BuildKit host prerequisite
@@ -220,10 +220,16 @@ operation="open" name="/var/tmp/previewforge-buildkit/" requested_mask="r"
 ```
 
 The first two reads are needed by RootlessKit's numeric-UID user lookup; the third is the runtime
-directory itself rather than its already-allowed descendants. The next change must add only these
-proven reads, re-run the hosted workflow, and inspect any subsequent kernel denial before further
-profile adjustment. M4 remains blocked; no daemon smoke check, build, push, or digest verification
-has passed yet.
+directory itself rather than its already-allowed descendants. The repository profile now permits
+only these three proven reads. No global AppArmor/sysctl relaxation, unconfined mode, Docker
+socket, host network, or broader home/config access was added.
+
+Local `apparmor_parser -Q -T`, M4 shell syntax, and `git diff --check` validation pass. Full
+`pnpm check` also passes with database 78/78, API 1/1, and worker 5/5 integration tests. An
+independent diff review found no AppArmor rule defect and confirmed the exact path/read-only
+mapping. The updated profile has not yet been exercised on the disposable hosted runner, so M4
+remains blocked until the smoke check and build → push → immutable digest oracle pass there. Any
+subsequent profile change still requires an exact kernel denial.
 
 ## Related links
 
