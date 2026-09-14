@@ -52,12 +52,21 @@ No global AppArmor/sysctl weakening, `--privileged`, runtime `apparmor=unconfine
 inheritance into the daemon was introduced. Permissions are changed only in response to exact
 hosted kernel evidence.
 
+## Post-handoff update — hosted socket repair
+
+The hosted socket permission failure was repaired by granting the normal runner group access only
+to the daemon-owned BuildKit Unix socket after BuildKit completed its own `chown`. Run
+[34860645607](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/34860645607) at commit
+`e099ade` passed the RootlessKit namespace and UID/GID-map checks, registry readiness, socket
+authorization, normal-user `buildctl debug workers`, fixture build/push, immutable digest
+verification, and cleanup. The remaining M4 acceptance matrix is tracked in the active backlog.
+
 ## Open work / next action
 
-M4 is not complete. Add only the three AppArmor reads proven by run `34850233883`, rerun the
-hosted workflow, and repeat exact-denial diagnosis if another confined dependency appears. Do not
-start M5 until the workflow proves registry and BuildKit readiness plus build → push → immutable
-digest verification.
+M4 is not complete. Implement the remaining real source/build/registry acceptance scenarios in the
+active backlog, then archive M4 only after public/private source, failure, timeout, duplicate
+delivery, stale-SHA, and credential-boundary evidence is recorded. Do not start M5 until that
+matrix passes.
 
 ## Related links
 

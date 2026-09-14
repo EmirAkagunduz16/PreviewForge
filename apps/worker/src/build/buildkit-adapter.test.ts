@@ -13,11 +13,17 @@ afterEach(async () => {
 });
 
 describe("BuildKitAdapter", () => {
+  it("rejects TCP BuildKit endpoints", () => {
+    expect(() => new BuildKitAdapter({ address: "tcp://buildkit:1234" })).toThrow(
+      "Invalid BuildKit address",
+    );
+  });
+
   it("runs a credential-free build and returns the immutable metadata digest", async () => {
     const root = await temporaryDirectory();
     const calls: { executable: string; args: readonly string[] }[] = [];
     const adapter = new BuildKitAdapter({
-      address: "tcp://buildkit:1234",
+      address: "unix:///var/tmp/buildkitd.sock",
       tempRoot: root,
       run: async (executable, args) => {
         calls.push({ executable, args });
@@ -42,7 +48,7 @@ describe("BuildKitAdapter", () => {
     });
     expect(calls[0]?.executable).toBe("buildctl");
     expect(calls[0]?.args).toContain("--addr");
-    expect(calls[0]?.args).toContain("tcp://buildkit:1234");
+    expect(calls[0]?.args).toContain("unix:///var/tmp/buildkitd.sock");
     expect(calls[0]?.args.join(" ")).not.toContain("password");
     expect(calls[0]?.args.join(" ")).not.toContain("token");
     await expect(readFile(join(root, "metadata.json"))).rejects.toThrow();
@@ -56,7 +62,7 @@ describe("BuildKitAdapter", () => {
   ])("maps buildctl %s to a safe infrastructure error", async (code, expected, retryable) => {
     const root = await temporaryDirectory();
     const adapter = new BuildKitAdapter({
-      address: "tcp://buildkit:1234",
+      address: "unix:///var/tmp/buildkitd.sock",
       tempRoot: root,
       run: async () => {
         const error = new Error("secret-build-output-token") as Error & { code: string };
@@ -78,7 +84,7 @@ describe("BuildKitAdapter", () => {
   it("rejects a missing or malformed digest instead of persisting a tag", async () => {
     const root = await temporaryDirectory();
     const adapter = new BuildKitAdapter({
-      address: "tcp://buildkit:1234",
+      address: "unix:///var/tmp/buildkitd.sock",
       tempRoot: root,
       run: async (_executable, args) => {
         const metadataPath = args[args.indexOf("--metadata-file") + 1];
@@ -96,8 +102,8 @@ describe("BuildKitAdapter", () => {
   });
 
   it.each([
-    ["tcp://buildkit:1234", "docker socket", "unix:///var/run/docker.sock"],
-    ["tcp://buildkit:1234", "path traversal", "../Dockerfile"],
+    ["unix:///var/tmp/buildkitd.sock", "docker socket", "unix:///var/run/docker.sock"],
+    ["unix:///var/tmp/buildkitd.sock", "path traversal", "../Dockerfile"],
   ])("rejects unsafe build input (%s)", async (address, _label, dockerfilePath) => {
     const root = await temporaryDirectory();
     const adapter = new BuildKitAdapter({

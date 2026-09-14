@@ -163,7 +163,7 @@ function classifyBuildctlError(error: unknown): BuildKitInfrastructureError {
 }
 
 function validateBuildKitAddress(value: string): void {
-  if (!(value.startsWith("tcp://") || value.startsWith("unix://")) || value.includes("\u0000")) {
+  if (!value.startsWith("unix:///") || value.includes("\u0000")) {
     throw new Error("Invalid BuildKit address");
   }
 }

@@ -148,7 +148,9 @@ REGISTRY_PROTOCOL=http
 
 It must build and push the fixture, return an immutable `sha256:<64 hex>` digest, fetch the
 manifest by that digest, verify the matching `Docker-Content-Digest`, and pass cleanup and
-credential/privilege-boundary checks. M4 remains blocked until this hosted workflow succeeds.
+credential/privilege-boundary checks. Hosted infrastructure validation is now proven by run
+`34860645607`; the remaining M4 source, failure, retry, and credential-boundary matrix is tracked
+in the active backlog.
 
 Before that acceptance test runs, the same hosted job must prove, in order: a live RootlessKit
 child in a distinct user namespace; successful UID/GID maps matching configured subordinate IDs;

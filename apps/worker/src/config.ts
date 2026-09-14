@@ -82,7 +82,7 @@ function parseBuildConfig(environment: NodeJS.ProcessEnv): WorkerBuildConfig | u
   );
   const githubApiBaseUrl = requiredOrigin(environment, "GITHUB_API_BASE_URL");
   const buildkitAddress = requiredEnvironment(environment, "BUILDKIT_ADDR");
-  if (!(buildkitAddress.startsWith("tcp://") || buildkitAddress.startsWith("unix://"))) {
+  if (!buildkitAddress.startsWith("unix:///")) {
     throw new Error("Invalid worker configuration: BUILDKIT_ADDR is invalid");
   }
   const registryHost = requiredEnvironment(environment, "REGISTRY_HOST");

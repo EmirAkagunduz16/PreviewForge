@@ -69,13 +69,13 @@ describe("loadWorkerConfig", () => {
       GITHUB_APP_ID: "123",
       GITHUB_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----",
       GITHUB_API_BASE_URL: "https://api.github.com",
-      BUILDKIT_ADDR: "tcp://127.0.0.1:1234",
+      BUILDKIT_ADDR: "unix:///var/tmp/previewforge-buildkit/buildkitd.sock",
       REGISTRY_HOST: "registry.local:5000",
     });
     expect(configured.build).toMatchObject({
       githubAppId: "123",
       githubApiBaseUrl: "https://api.github.com",
-      buildkitAddress: "tcp://127.0.0.1:1234",
+      buildkitAddress: "unix:///var/tmp/previewforge-buildkit/buildkitd.sock",
       registryHost: "registry.local:5000",
     });
     expect(configured.build?.githubPrivateKey).toContain("\n");
