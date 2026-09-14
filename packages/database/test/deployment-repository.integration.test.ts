@@ -363,6 +363,47 @@ describe("DeploymentRepository (PostgreSQL)", () => {
     );
   });
 
+  it("durably supersedes active stale work after the desired SHA changes", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+
+    for (const [expectedStatus, to] of [
+      ["QUEUED", "CLONING"],
+      ["CLONING", "BUILDING"],
+      ["BUILDING", "PUSHING"],
+    ] as const) {
+      await expect(
+        repository.transition({
+          deploymentId: fixture.deploymentId,
+          expectedStatus,
+          to,
+          expectedDesiredSha: fixture.commitSha,
+        }),
+      ).resolves.toMatchObject({ applied: true });
+    }
+
+    const replacementSha = "d".repeat(40);
+    await prisma.previewEnvironment.update({
+      where: { id: fixture.environmentId },
+      data: { desiredCommitSha: replacementSha },
+    });
+
+    await expect(
+      repository.supersedeIfStale({
+        deploymentId: fixture.deploymentId,
+        expectedStatus: "PUSHING",
+        expectedCommitSha: fixture.commitSha,
+      }),
+    ).resolves.toMatchObject({ applied: true, eventType: "deployment.stage-changed.v1" });
+
+    await expect(
+      prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
+    ).resolves.toMatchObject({ status: "SUPERSEDED", imageDigest: null });
+    expect(await prisma.outboxEvent.count({ where: { aggregateId: fixture.deploymentId } })).toBe(
+      4,
+    );
+  });
+
   it("requires the explicit desired-SHA token and emits no event on mismatch", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);

@@ -53,10 +53,12 @@ export type {
   DeploymentTransitionInput,
   DeploymentTransitionNoopReason,
   DeploymentTransitionResult,
+  StaleDeploymentSupersedeInput,
 } from "./deployment-repository.js";
 export {
   DeploymentRepository,
   DeploymentTransitionError,
+  supersedeStaleDeployment,
   transitionDeployment,
 } from "./deployment-repository.js";
 export type {

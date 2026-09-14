@@ -14,7 +14,7 @@ export type DeploymentBuildPipelineInput = {
 export type DeploymentBuildPipelineDependencies = {
   sourceClient: Pick<GitHubSourceClient, "fetchArchive">;
   buildkit: Pick<BuildKitAdapter, "buildAndPush">;
-  deployments: Pick<DeploymentRepository, "transition">;
+  deployments: Pick<DeploymentRepository, "transition" | "supersedeIfStale">;
   materialize?: typeof materializeSourceContext;
 };
 
@@ -70,6 +70,14 @@ export async function runDeploymentBuildPipeline(
       expectedDesiredSha: input.desiredSha,
       imageDigest: build.digest,
     });
+    if (!deployed.applied && deployed.reason === "DESIRED_SHA_MISMATCH") {
+      const superseded = await dependencies.deployments.supersedeIfStale({
+        deploymentId: input.deploymentId,
+        expectedStatus: "PUSHING",
+        expectedCommitSha: input.desiredSha,
+      });
+      if (superseded.applied) return { kind: "SUPERSEDED" };
+    }
     if (!deployed.applied) return transitionNoop(deployed, "PUSHING");
     return { kind: "DEPLOYING", digest: build.digest };
   } catch (error) {

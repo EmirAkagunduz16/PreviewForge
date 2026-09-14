@@ -142,16 +142,23 @@ jobs:
           node-version: 22.18.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Start PostgreSQL and Kafka test dependencies
+        run: pnpm infra:up
       - name: Generate Prisma Client
         run: pnpm generate
         env:
           # Prisma 7 loads prisma.config.ts during generation; no connection is opened.
+          DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
+      - name: Apply PostgreSQL migrations
+        run: pnpm --filter @previewforge/database migrate:deploy
+        env:
           DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
 
       - name: Build fixture, push registry, and verify immutable digest
         shell: bash
         env:
           BUILDKIT_ADDR: unix:///var/tmp/previewforge-buildkit/buildkitd.sock
+          DATABASE_URL: postgresql://previewforge:previewforge@localhost:55432/previewforge
           REGISTRY_URL: 127.0.0.1:5000
           REGISTRY_PROTOCOL: http
         run: |
@@ -166,4 +173,5 @@ jobs:
           if id previewforge-buildkit >/dev/null 2>&1; then
             sudo -u previewforge-buildkit ./scripts/m4-runner/stop-rootless-stack.sh
           fi
+          pnpm infra:down || true
           sudo rm -rf /var/tmp/previewforge-buildkit /var/tmp/previewforge-registry

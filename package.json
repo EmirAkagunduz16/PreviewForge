@@ -20,7 +20,7 @@
     "infra:up": "node scripts/local-infra.mjs up -d --wait",
     "test": "turbo run test",
     "test:acceptance": "pnpm test:acceptance:m3 && pnpm test:acceptance:build",
-    "test:acceptance:build": "pnpm --filter @previewforge/worker test:build:integration",
+    "test:acceptance:build": "pnpm --filter @previewforge/worker test:build:integration && pnpm --filter @previewforge/worker test:acceptance:m4",
     "test:acceptance:m3": "pnpm --filter @previewforge/worker test:acceptance:restart",
     "test:integration": "pnpm --filter @previewforge/database test:integration && pnpm --filter @previewforge/api test:integration && pnpm --filter @previewforge/worker test:integration",
     "typecheck": "turbo run typecheck"

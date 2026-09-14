@@ -19,6 +19,7 @@ function dependencies(
   overrides: {
     transition?: (value: Record<string, unknown>) => Promise<DeploymentTransitionResult>;
     build?: () => Promise<BuildKitBuildResult>;
+    supersedeIfStale?: () => Promise<DeploymentTransitionResult>;
   } = {},
 ) {
   const cleanup = vi.fn(async () => undefined);
@@ -47,6 +48,7 @@ function dependencies(
         transitions.push(value);
         return overrides.transition?.(value) ?? success();
       }),
+      supersedeIfStale: vi.fn(overrides.supersedeIfStale ?? (async () => success())),
     },
   };
 }
@@ -91,15 +93,27 @@ describe("runDeploymentBuildPipeline", () => {
   });
 
   it("does not publish a digest when the desired SHA becomes stale", async () => {
-    const deps = dependencies({
+    const supersedeIfStale = vi.fn(async () => ({
+      applied: true as const,
+      deployment: {} as never,
+      outboxEventId: "superseded-event",
+      eventType: "deployment.stage-changed.v1",
+    }));
+    const depsWithSupersede = dependencies({
       transition: async (value) =>
         value.to === "DEPLOYING"
           ? { applied: false, reason: "DESIRED_SHA_MISMATCH", currentStatus: "PUSHING" }
           : success(),
+      supersedeIfStale,
     });
-    const result = await runDeploymentBuildPipeline(input, deps);
+    const result = await runDeploymentBuildPipeline(input, depsWithSupersede);
 
     expect(result).toEqual({ kind: "SUPERSEDED" });
-    expect(deps.transitions.at(-1)).toMatchObject({ to: "DEPLOYING" });
+    expect(depsWithSupersede.transitions.at(-1)).toMatchObject({ to: "DEPLOYING" });
+    expect(supersedeIfStale).toHaveBeenCalledWith({
+      deploymentId: input.deploymentId,
+      expectedStatus: "PUSHING",
+      expectedCommitSha: input.desiredSha,
+    });
   });
 });

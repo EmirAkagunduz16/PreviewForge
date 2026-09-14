@@ -29,6 +29,12 @@ export type DeploymentTransitionInput = {
   occurredAt?: Date;
 };
 
+export type StaleDeploymentSupersedeInput = {
+  deploymentId: string;
+  expectedStatus: DeploymentStatus;
+  expectedCommitSha: string;
+};
+
 export type DeploymentRecord = {
   id: string;
   environmentId: string;
@@ -93,6 +99,81 @@ export class DeploymentRepository {
   transitionDeployment(input: DeploymentTransitionInput): Promise<DeploymentTransitionResult> {
     return this.transition(input);
   }
+
+  supersedeIfStale(input: StaleDeploymentSupersedeInput): Promise<DeploymentTransitionResult> {
+    return supersedeStaleDeployment(this.prisma, input);
+  }
+}
+
+export async function supersedeStaleDeployment(
+  prisma: PrismaClient,
+  input: StaleDeploymentSupersedeInput,
+): Promise<DeploymentTransitionResult> {
+  const expectedStatus = deploymentStatusSchema.safeParse(input.expectedStatus);
+  if (!expectedStatus.success || expectedStatus.data === "READY") {
+    throw new DeploymentTransitionError("invalid active status for stale supersession");
+  }
+  if (!canTransitionDeployment(expectedStatus.data, "SUPERSEDED")) {
+    throw new DeploymentTransitionError("deployment cannot be superseded from this status");
+  }
+  if (!/^[0-9a-f]{40}$/iu.test(input.expectedCommitSha)) {
+    throw new DeploymentTransitionError("expectedCommitSha is invalid");
+  }
+
+  const occurredAt = new Date();
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.deployment.updateManyAndReturn({
+      where: {
+        id: input.deploymentId,
+        status: input.expectedStatus,
+        commitSha: input.expectedCommitSha,
+        environment: { desiredCommitSha: { not: input.expectedCommitSha } },
+      },
+      data: { status: "SUPERSEDED", updatedAt: occurredAt, finishedAt: occurredAt },
+    });
+    const row = updated[0];
+    if (row) {
+      const deployment = toDeploymentRecord(row);
+      const outboxEventId = randomUUID();
+      const eventType = "deployment.stage-changed.v1";
+      await tx.outboxEvent.create({
+        data: {
+          id: outboxEventId,
+          eventType,
+          aggregateType: "deployment",
+          aggregateId: deployment.id,
+          payload: transitionPayload(
+            deployment,
+            {
+              deploymentId: deployment.id,
+              expectedStatus: input.expectedStatus,
+              to: "SUPERSEDED",
+              expectedDesiredSha: input.expectedCommitSha,
+            },
+            eventType,
+            outboxEventId,
+            occurredAt,
+          ),
+        },
+      });
+      return { applied: true, deployment, outboxEventId, eventType };
+    }
+
+    const guard = await readGuard(tx, input.deploymentId);
+    if (!guard) return { applied: false, reason: "NOT_FOUND" };
+    const currentStatus = deploymentStatusSchema.parse(guard.status);
+    if (isTerminal(currentStatus)) return { applied: false, reason: "TERMINAL", currentStatus };
+    if (currentStatus !== input.expectedStatus) {
+      return { applied: false, reason: "EXPECTED_STATUS_MISMATCH", currentStatus };
+    }
+    if (
+      guard.commitSha !== input.expectedCommitSha ||
+      guard.environment.desiredCommitSha === input.expectedCommitSha
+    ) {
+      return { applied: false, reason: "DESIRED_SHA_MISMATCH", currentStatus };
+    }
+    return { applied: false, reason: "EXPECTED_STATUS_MISMATCH", currentStatus };
+  });
 }
 
 export async function transitionDeployment(
