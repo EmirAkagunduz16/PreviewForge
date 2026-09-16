@@ -48,17 +48,11 @@ that live logs, environment-variable management, or the dashboard UI are deliver
 
 ## Prevention / next action
 
-Resolve the explicit `M6-PRODUCT-CONTRACT` gate before starting dependent environment or
-log persistence work. Current recommendations are not approved decisions:
-
-- Environment-variable scope: project-scoped/shared across PR previews is recommended;
-  user/root confirmation is still required.
-- Logs: 16 KiB maximum chunk, 2 MiB maximum retained per deployment, 30-day retention,
-  and explicit gap/reset on removed cursor history are proposed; user/root confirmation
-  is still required.
-
-After the gate is recorded, proceed sequentially through the remaining M6 slices in
-`docs/plans/m6-dashboard-live-logs.md`. M7 cleanup orchestration and M8 production
+The `M6-PRODUCT-CONTRACT` gate was approved and archived on 2026-09-16; see the
+[canonical decision report](decision-2026-09-16-m6-product-contract.md) for exact
+project-scoped variable and log-byte/retention/gap semantics. Proceed sequentially with
+M6-ENV-VARS, then M6-LOG-DURABILITY, SSE, dashboard, and integrated acceptance. Those
+implementation slices remain unfinished. M7 cleanup orchestration and M8 production
 RBAC/CNI concerns remain deferred as already scoped.
 
 ## Related links

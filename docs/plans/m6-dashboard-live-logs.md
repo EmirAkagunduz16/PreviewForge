@@ -24,7 +24,11 @@ cross-provider integrations are introduced.
 - `Project`, `PullRequest`, `PreviewEnvironment`, `Deployment`, and `LogChunk` already
   exist in PostgreSQL. `LogChunk` already has `(deploymentId, sequence)` uniqueness,
   `stage`, `stream`, `text`, and `emittedAt`; no M6 migration is needed unless an
-  approved bounded-retention implementation requires an additional index/field.
+  approved bounded-retention implementation requires an additional index/field. The
+  approved age cutoff is based on `createdAt`, which `LogChunk` does not currently
+  have; M6-LOG-DURABILITY must add a persisted `createdAt` timestamp and migration
+  (backfill existing rows from `emittedAt` if any exist) rather than treating `emittedAt`
+  as equivalent.
 - Project ownership comes from `Project.ownerId`; authorization must be enforced in
   every read/write query through the authenticated session, not only in the browser.
   Return the same not-found result for absent and non-owned resources. Use the existing
@@ -60,25 +64,30 @@ cross-provider integrations are introduced.
   If retention has removed the cursor range, send an explicit gap/reset indication;
   never silently claim that omitted historical output was replayed.
 
-## Product decisions that block dependent slices
+## Locked product decisions — approved 2026-09-16
 
-Two user-visible limits are not specified by the MVP, ADRs, or current schema and must
-not be silently guessed:
+The user explicitly approved these M6 product contracts on 2026-09-16. They are locked
+for implementation; do not substitute the earlier recommendations or silently alter
+the limits. Canonical evidence: [M6 product-contract decision](../reports/decision-2026-09-16-m6-product-contract.md).
 
-1. Environment-variable scope: project-wide values shared by every PR preview for a
-   project, or values scoped independently to each preview environment. Recommendation
-   for confirmation: project-wide, because the roadmap places settings with projects
-   and the current UI promise is generic write-only environment-variable management.
-   The selected scope changes the storage key, API routes, editor, and worker lookup.
-2. Log retention: maximum UTF-8 bytes per stored chunk, total retained bytes/chunks per
-   deployment, and/or age-based retention, including how truncation is presented.
-   Select an explicit finite budget and document it before implementing the writer or
-   cursor-gap behavior. The existing schema alone does not define this product policy.
+1. **Environment variables are project-scoped and shared by every PR preview belonging
+   to that project.** Storage keys, owner-scoped API routes, dashboard controls, and
+   worker lookup must all follow this scope. Values remain encrypted and write-only.
+2. **Log bounds are measured on UTF-8 encoded `text` bytes:** at most 16 KiB (`16 *
+   1024 = 16,384` bytes) per persisted chunk, at most 2 MiB (`2 * 1024 * 1024 =
+   2,097,152` bytes) of retained log text per deployment, and a 30-day age retention
+   window. Age expiry is determined from persisted `createdAt` (not `emittedAt`).
+   Split oversized input at UTF-8 boundaries into chunks that satisfy the per-chunk
+   limit. When either total-cap or age retention evicts older chunks, an SSE request
+   whose `Last-Event-ID` points into removed history must emit an explicit `event: gap`
+   with the oldest retained sequence (or next sequence when no chunks remain); clients
+   must visibly reset/resume from that boundary and must not treat omitted output as
+   replayed.
 
-`M6-PRODUCT-CONTRACT` is a hard gate for environment storage/runtime and log persistence.
-The query API slice can proceed first. If either decision remains unresolved when the
-sequential implementer reaches its dependent slice, stop there and request direction;
-do not encode a guessed scope or retention contract.
+Secret values remain excluded from build context, image layers, event payloads, API
+responses, and logs. `M6-PRODUCT-CONTRACT` is closed; `M6-ENV-VARS` and
+`M6-LOG-DURABILITY` are unblocked but still unimplemented. Execute all slices
+sequentially under the ownership ledger.
 
 ## Baseline and sequential ownership ledger
 
@@ -109,9 +118,9 @@ database exports, API module wiring, or the web proxy configuration.
 | Order | Slice | Owned paths | Depends on |
 |---:|---|---|---|
 | 1 | M6-QUERY-API | `packages/database/src/dashboard-repository.ts`, its database tests, `packages/database/src/index.ts`, `apps/api/src/dashboard/`, `apps/api/src/app.module.ts`, API tests | M5 complete |
-| Gate | M6-PRODUCT-CONTRACT | `docs/plans/m6-dashboard-live-logs.md`, `docs/backlog/active.md` | Query API design review; user/root decision |
-| 2 | M6-ENV-VARS | Prisma schema + one migration, `packages/database/src/project-environment-repository.ts`, `packages/security/`, API environment-variable module/config/tests, worker config/runtime integration/tests, M5 Kubernetes environment seam | M6-PRODUCT-CONTRACT |
-| 3 | M6-LOG-DURABILITY | `packages/database/src/log-chunk-repository.ts`, database tests/exports, worker BuildKit log streaming/pipeline/config/tests | M6-PRODUCT-CONTRACT |
+| Gate | M6-PRODUCT-CONTRACT | `docs/plans/m6-dashboard-live-logs.md`, `docs/backlog/active.md`, decision report | Query API design review and explicit user approval; closed 2026-09-16 |
+| 2 | M6-ENV-VARS | Prisma schema + one migration, `packages/database/src/project-environment-repository.ts`, `packages/security/`, API environment-variable module/config/tests, worker config/runtime integration/tests, M5 Kubernetes environment seam | M6-PRODUCT-CONTRACT (closed; project scope locked) |
+| 3 | M6-LOG-DURABILITY | Prisma schema + one additive migration for `LogChunk.createdAt`, `packages/database/src/log-chunk-repository.ts`, database tests/exports, worker BuildKit log streaming/pipeline/config/tests | M6-PRODUCT-CONTRACT (closed; byte/age/gap policy locked) |
 | 4 | M6-SSE-API | `apps/api/src/live-output/`, `apps/api/src/app.module.ts`, API tests; log read methods in the owned database repository | M6-QUERY-API, M6-LOG-DURABILITY |
 | 5 | M6-DASHBOARD | `apps/web/app/`, `apps/web/next.config.ts`; web tests; `.env.example` only after root reserves it | M6-QUERY-API, M6-ENV-VARS, M6-SSE-API |
 | 6 | M6-ACCEPTANCE | `apps/api/src/m6.integration.test.ts`, `apps/web` acceptance harness only if an existing supported browser harness is available | all prior slices |
@@ -136,43 +145,48 @@ to root. Do not create a new service or modify protected root-owned report files
   API unit tests 53/53; full `pnpm check` passed. Canonical evidence:
   [M6 Query API session report](../reports/session-2026-09-16-m6-query-api.md).
 - Implementation commit: `12a89d73a0a7dca554316245f2e17429517c6163`.
-- Next action: continue with the blocked product-contract gate; no other M6 slice is closed.
+- Next action: the approved gate is closed; continue sequentially with M6-ENV-VARS.
 
 ### M6-PRODUCT-CONTRACT
 
-- Dependency: query API design review; explicit user/root decision. This is a hard gate
-  for both secret storage/runtime and log persistence.
+- Dependency: query API design review and explicit user approval, satisfied 2026-09-16.
+- Status/evidence: complete and archived as `M6-PRODUCT-CONTRACT`; the exact locked
+  scope and byte/age/gap contract is recorded above and in the
+  [canonical decision report](../reports/decision-2026-09-16-m6-product-contract.md).
 - Objective and owned paths: record approved choices in this plan and `docs/backlog/active.md`;
   do not change implementation paths here.
-- Acceptance and verification: specify project-wide versus preview-scoped variables,
-  finite per-chunk/total/age log limits, and truncation/gap behavior; run
-  `pnpm docs:check` and `git diff --check`. Until then, dependent entries remain blocked.
-- Next action: obtain the two decisions; do not infer them from the schema or UI placement.
+- Acceptance and verification: approved project-scoped environment variables and the
+  16 KiB / 2 MiB / 30-day `createdAt` log contract with explicit `gap` event; run
+  `pnpm docs:check` and `git diff --check`.
+- Next action: none for the gate; implement the now-unblocked dependent slices in order.
 
 ### M6-ENV-VARS
 
-- Dependency: approved M6-PRODUCT-CONTRACT.
+- Dependency: M6-PRODUCT-CONTRACT closed; implement after Query API in the sequential ledger.
 - Objective and owned paths: add encrypted owner-scoped persistence, API write-only
-  key management, shared cipher support, and worker-to-preview injection. Scope is
+  key management, shared cipher support, and worker-to-preview injection using
+  project-scoped values shared by every PR preview. Scope is
   Prisma/migration, database repository, `packages/security/`, API environment module,
   worker config/runtime/tests, and the M5 Kubernetes environment seam.
 - Acceptance and verification: disposable PostgreSQL/API/worker tests plus real kind
   prove ciphertext binding, redacted reads, and Pod-only plaintext injection; run the
   database, API, and worker tests before runtime acceptance.
-- Next action: wait for the approved variable scope, then implement without exposing
-  values to BuildKit, events, responses, or logs.
+- Next action: implement the approved project-wide scope without exposing values to
+  BuildKit, events, responses, or logs.
 
 ### M6-LOG-DURABILITY
 
-- Dependency: approved M6-PRODUCT-CONTRACT.
+- Dependency: M6-PRODUCT-CONTRACT closed; implement after M6-ENV-VARS in the sequential ledger.
 - Objective and owned paths: stream bounded BuildKit output into ordered durable chunks
-  via `packages/database/src/log-chunk-repository.ts` and worker build/log pipeline,
-  configuration, exports, and tests.
+  via an additive Prisma `LogChunk.createdAt` migration, `packages/database/src/log-chunk-repository.ts`,
+  database tests/exports, and worker build/log pipeline, configuration, and tests.
 - Acceptance and verification: disposable PostgreSQL and a real BuildKit streaming
-  fixture prove ordered restart-safe chunks, approved finite retention, explicit
-  truncation, and safe plain-text output; run database integration and worker tests.
-- Next action: wait for approved limits, then implement transactional sequence allocation
-  and the specified retention behavior.
+  fixture prove UTF-8 text chunks <= 16,384 bytes, <= 2,097,152 retained text bytes per
+  deployment, eviction by oldest sequence as needed for the total cap, expiry where
+  `createdAt < now - 30 days`, explicit `event: gap` after evicted cursor history, and
+  safe plain-text output; run database integration and worker tests.
+- Next action: implement the approved finite bounds and age policy with transactional
+  sequence allocation; do not approximate `createdAt` with `emittedAt`.
 
 ### M6-SSE-API
 
@@ -214,7 +228,7 @@ to root. Do not create a new service or modify protected root-owned report files
 | Slice | Risk | Stimulus | Observable oracle | Fault sensitivity | Runtime |
 |---|---|---|---|---|---|
 | M6-QUERY-API | Dashboard leaks another user's projects/previews or reports stale/incomplete history. | Authenticate two fixture users; query project list, active previews, project history, and a deployment detail with pagination. | Responses contain only owned projects; preview rows join the correct PR/current desired deployment; attempt history and stage/failure fields match PostgreSQL; non-owner and absent IDs are indistinguishable. | Remove owner predicate or weaken join and the cross-user real-DB case returns forbidden rows. | API + disposable PostgreSQL; route tests must assert HTTP and response bodies. |
-| M6-PRODUCT-CONTRACT | Schema/API/UI become incompatible because variable scope or log retention is guessed. | Review explicit alternatives and record the owner-approved choice in this plan before dependent implementation starts. | Scope and finite log chunk/retention/gap policy are written as locked decisions; otherwise dependent entries remain blocked with exact next action. | Attempting implementation while either field is unresolved fails the handoff gate. | Human product decision; no runtime. |
+| M6-PRODUCT-CONTRACT | Schema/API/UI become incompatible if the approved scope or retention contract is changed implicitly. | Apply the 2026-09-16 explicit user approval to the plan and dependent implementation contracts. | Project-shared variables, exact UTF-8 byte limits, createdAt age cutoff, oldest-first eviction, and named SSE `gap` event match the locked decision report. | Any implementation using preview-scoped values, different limits/cutoff, or silent cursor loss fails direct acceptance. | Human approval recorded; no runtime required for this completed gate. |
 | M6-ENV-VARS | Secrets leak through read APIs, cross-owner writes, storage, Kafka/build args/logs, or wrong preview runtime. | Owner writes/replaces/deletes individual keys; non-owner attempts access; build and preview consume the configured values. | Database stores authenticated ciphertext bound to project/key; API lists names only; worker gets plaintext only after build and M5 applies it to the owned preview Secret; no value appears in response/outbox/build args/logs. | Deliberately return a value, remove AAD/owner checks, or pass variables into BuildKit and tests/acceptance fail. | API + worker + disposable PostgreSQL and real disposable kind for Pod environment/Secret proof. |
 | M6-LOG-DURABILITY | Build output is lost, reordered, unbounded, duplicated, or rendered as executable markup. | Emit concurrent multi-chunk stdout/stderr/build events including oversized UTF-8 and terminal-control fixtures; restart/read from PostgreSQL. | Ordered unique sequences, approved chunk/retention caps, explicit truncation, safe text, and durable reload; build process output is streamed instead of buffered only until exit. | Disable cap, sequence lock/fence, or text escaping and limit/order/XSS assertions fail. | Disposable PostgreSQL; real BuildKit fixture for streamed progress and cleanup. |
 | M6-SSE-API | Disconnects lose/duplicate log output, stale status is shown, or a stream bypasses ownership/auth. | Connect with/without a cursor, append logs and transition status during the stream, reconnect, use an expired cursor, and disconnect. | Authenticated owner receives current status, ordered replay after Last-Event-ID, live new chunks/status, explicit retention-gap marker when applicable, heartbeat, and prompt stream cleanup; cross-owner request is denied. | Remove cursor filtering or owner check, or omit DB status re-read on reconnect; integration oracle fails. | API over disposable PostgreSQL; real HTTP SSE stream (not only mocked Observable). |
@@ -234,20 +248,25 @@ to root. Do not create a new service or modify protected root-owned report files
   shows the enum-defined stage progression, terminal failure fields, timestamps,
   immutable digest identity where relevant, and retained logs. The UI does not mutate
   deployment state.
-- Environment-variable routes are owner-scoped. Once the scope decision is confirmed,
-  expose key listing (names only), per-key create/replace, and per-key delete. Require
+- Environment-variable routes are project-scoped and owner-scoped; the same project's
+  values are shared by all PR previews. Expose key listing (names only), per-key
+  create/replace, and per-key delete. Require
   same-origin mutation requests and validate bounded key/value input. Clear values from
   local component state after save and never repopulate them from server responses.
 - `GET /api/deployments/:deploymentId/logs?after=<sequence>` pages retained durable
   output; `GET /api/deployments/:deploymentId/events` is SSE. SSE uses numeric log
   sequence IDs for `log` events, a freshly read deployment snapshot on connect/reconnect,
-  a documented `gap`/`reset` event when a cursor precedes retained data, and comment
+  an explicit `gap` event when Last-Event-ID predates retained data, and comment
   heartbeats. Status notifications are re-read from PostgreSQL, not dependent on a
   process-local fanout map or an unretained Kafka event.
-- Limit log chunks and total retention according to the approved M6 product budget.
-  Append sequences transactionally under the deployment row lock; if the worker lease
-  is available at the append seam, fence stale worker writes by lease generation. Build
-  output remains plain text and bounded before persistence.
+- Enforce each log text chunk at <= 16,384 UTF-8 bytes and retained text at <= 2,097,152
+  UTF-8 bytes per deployment. Evict the oldest chunks first for the total cap and expire
+  chunks by `createdAt < now - 30 days`; update `LogChunk.createdAt` with the additive
+  migration owned by M6-LOG-DURABILITY. Append sequences transactionally under the
+  deployment row lock; if the worker lease is available at the append seam, fence stale
+  worker writes by lease generation. Build output remains plain text and bounded before
+  persistence. An expired `Last-Event-ID` produces `event: gap` with the oldest retained
+  sequence, or the next sequence when nothing remains, so the client can reset/resume.
 - The initial dashboard may use one project/deployment navigation and native
   `EventSource`; keep accessibility and useful empty/loading/error states. Do not add a
   frontend framework or authentication provider for M6.
@@ -258,7 +277,8 @@ to root. Do not create a new service or modify protected root-owned report files
   real PostgreSQL integration tests, including cross-user isolation and pagination.
 - Deployment status/stages use the shared transition contract; attempt history and
   failure metadata remain redacted and durable.
-- Environment scope and log retention are approved before dependent work. Environment
+- Environment scope and log retention are locked by the 2026-09-16 approval; implementation
+  remains outstanding. Environment
   values are encrypted at rest with authenticated project/key binding, write-only at
   the API boundary, injected only into the preview Pod, and absent from BuildKit/Kafka/
   API responses/logs.
@@ -280,9 +300,9 @@ status: active
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: Resolve M6-PRODUCT-CONTRACT decisions before M6-ENV-VARS or M6-LOG-DURABILITY begins.
-blocker: Environment-variable scope and finite log retention budget are not specified in existing MVP/ADR/schema.
+next_action: Implement M6-ENV-VARS, then M6-LOG-DURABILITY sequentially under the approved contract; M6 remains active.
+blocker: none for the product-contract gate; the implementation slices remain unfinished backlog work.
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: Planning baseline HEAD 165d06c4fdc797de89c765e483d776742a95446a; no implementation/runtime evidence claimed.
+evidence: User approved project-shared environment scope and 16 KiB/2 MiB/30-day createdAt retention with explicit SSE gap event on 2026-09-16; recorded in docs/reports/decision-2026-09-16-m6-product-contract.md. No implementation/runtime evidence is claimed for ENV-VARS or LOG-DURABILITY.
 evidence_commit: not-run
 ```
