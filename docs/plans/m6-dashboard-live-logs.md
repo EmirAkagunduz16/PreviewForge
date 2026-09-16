@@ -203,7 +203,7 @@ to root. Do not create a new service or modify protected root-owned report files
   high-water means next sequence to allocate, and `createdAt` is not approximated by
   `emittedAt`.
 - Implementation/evidence commit: `d6d3f9ff59d02bc5646a3d795dabbf72b95736c5`.
-- Next action: M6-SSE-API is complete; proceed to M6-DASHBOARD. Resolve and rerun
+- Next action: M6-SSE-API and M6-DASHBOARD are complete; resolve and rerun
   OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
 
 ### M6-SSE-API
@@ -220,11 +220,16 @@ to root. Do not create a new service or modify protected root-owned report files
   unauthenticated 401, foreign/absent 404, and disconnect cleanup. Fixture users,
   projects, deployments, chunks, and outbox rows were 0/0/0/0/0; the database was
   dropped. `pnpm check` passed; see [the SSE report](../reports/session-2026-09-16-m6-sse-api.md).
-- Next action: proceed sequentially to M6-DASHBOARD. Keep PostgreSQL authoritative and
-  resolve/rerun OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
+- Next action: M6-DASHBOARD is complete; keep PostgreSQL authoritative and resolve/rerun
+  OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
 
 ### M6-DASHBOARD
 
+- Status: complete on 2026-09-16. Real browser/API/PostgreSQL acceptance passed against a
+  disposable OAuth stub and fixture set; see the [completion evidence report](../reports/session-2026-09-16-m6-dashboard.md).
+  M6 remains active because integrated M6 acceptance and the open M5 health drift are not
+  closed.
+- Implementation/evidence commit: `41085ef`.
 - Dependency: M6-QUERY-API, M6-ENV-VARS, and M6-SSE-API.
 - Objective and owned paths: build the authenticated project/preview/history/detail UI,
   resumable logs, and write-only environment-key editor in `apps/web/app/`, the Next
@@ -232,8 +237,8 @@ to root. Do not create a new service or modify protected root-owned report files
 - Acceptance and verification: authenticated browser/network checks prove owner-scoped
   views, ordered stages/history, refresh/reconnect, secret redaction, key mutations,
   errors/loading, and sign-out; run web tests and browser acceptance.
-- Next action: start after all listed API/runtime slices are accepted and use same-origin
-  routing without weakening the session cookie.
+- Next action: proceed to M6-ACCEPTANCE only after `OPS-M5-HEALTH-ACCEPTANCE-DRIFT` is
+  resolved; preserve the same-origin routing and session-cookie evidence.
 
 ### M6-ACCEPTANCE
 
@@ -324,9 +329,9 @@ status: active
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: Implement M6-DASHBOARD next, then integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated acceptance. M6 remains active.
-blocker: Product contract, ENV-VARS, LOG-DURABILITY, and SSE are closed. Dashboard and integrated acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
+next_action: Resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT, then run M6-ACCEPTANCE; M6 remains active.
+blocker: Product contract, ENV-VARS, LOG-DURABILITY, SSE, and DASHBOARD are closed. Full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
-evidence_commit: ef365b0113545a61cd87ebc66705590e54a5373b
+evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. DASHBOARD evidence is docs/reports/session-2026-09-16-m6-dashboard.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
+evidence_commit: not-run
 ```

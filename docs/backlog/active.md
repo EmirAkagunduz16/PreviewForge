@@ -12,31 +12,20 @@ evidence or focused M6 ENV-VARS proof. See the [M5 execution plan](../plans/m5-k
 ## M6 — dashboard and live logs
 
 Implement remaining slices sequentially with one Luna medium agent; do not run parallel
-lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, M6-ENV-VARS, M6-LOG-DURABILITY, and M6-SSE-API are
-complete and archived with evidence.
+lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, M6-ENV-VARS, M6-LOG-DURABILITY, M6-SSE-API, and
+M6-DASHBOARD are complete and archived with evidence.
 The [M6 execution plan](../plans/m6-dashboard-live-logs.md) contains the approved locked
 contracts and sequential ownership/acceptance matrix. M6 as a whole remains active.
-
-- id: M6-DASHBOARD
-  status: queued
-  acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-DASHBOARD
-  owned_paths: [apps/web/app/, apps/web/next.config.ts, apps/web/test/]
-  verification_command: pnpm --filter @previewforge/web test; authenticated browser acceptance against API and PostgreSQL
-  next_action: After M6-QUERY-API, M6-ENV-VARS, and M6-SSE-API, implement project/preview/history/detail navigation, resumable logs, and a write-only key editor.
-  blocker: Depends on M6-QUERY-API, M6-ENV-VARS, and M6-SSE-API; same-origin browser/API routing must preserve the existing session cookie.
-  acceptance: Browser/network assertions prove owner-scoped views, stage/history rendering, refresh/reconnect, secret redaction, key mutation, loading/error states, and sign-out.
-  evidence: not-run; implementation has not started.
-  evidence_commit: not-run
 
 - id: M6-ACCEPTANCE
   status: queued
   acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-ACCEPTANCE
   owned_paths: [apps/api/src/m6.integration.test.ts, apps/web/test/]
   verification_command: pnpm check; real disposable PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser acceptance
-  next_action: After all prior slices pass their narrow gates, run the integrated owner/non-owner, secret write-only/runtime, log replay/reconnect, and durable failure workflow; capture actual runtime evidence and residue checks.
+  next_action: Resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT, then run the integrated owner/non-owner, secret write-only/runtime, log replay/reconnect, and durable failure workflow; capture actual runtime evidence and residue checks.
   blocker: Depends on M6-QUERY-API, M6-ENV-VARS, M6-LOG-DURABILITY, M6-SSE-API, and M6-DASHBOARD; OPS-M5-HEALTH-ACCEPTANCE-DRIFT must be resolved and the full real M5 acceptance rerun green first.
   acceptance: Real dependency and browser evidence covers every M6 exit criterion; cleanup leaves zero fixture DB rows and no managed namespaces; unavailable dependencies are reported not-run rather than mocked as a pass.
-  evidence: not-run; implementation has not started.
+  evidence: not-run; M6-DASHBOARD narrow implementation and authenticated browser evidence passed, but the integrated M6 workflow remains not-run until the M5 health drift is resolved.
   evidence_commit: not-run
 
 - id: OPS-M5-HEALTH-ACCEPTANCE-DRIFT
