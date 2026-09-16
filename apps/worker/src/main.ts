@@ -15,6 +15,13 @@ import { loadWorkerConfig } from "./config.js";
 import { handleDeploymentMessage } from "./deployment-consumer.js";
 import { createKafkaClient, manualCommitRunOptions } from "./kafka/client.js";
 import { ensureKafkaTopics } from "./kafka/topics.js";
+import { createKubernetesResourceClient } from "./kubernetes/client.js";
+import {
+  createKubernetesReconciler,
+  reconcilePreviewDeployment,
+} from "./kubernetes/deployment-reconciler.js";
+import { persistKubernetesFailure } from "./kubernetes/failure-persistence.js";
+import { httpHealthCheck, resolveHealthCheckUrl } from "./kubernetes/rollout.js";
 import { relayOutboxBatch } from "./outbox-relay.js";
 import { GitHubInstallationTokenProvider } from "./source/github-installation-token.js";
 import { GitHubSourceClient } from "./source/github-source.js";
@@ -30,8 +37,17 @@ async function main(): Promise<void> {
   const projects = new ProjectRepository(prisma);
   const outbox = new OutboxRelayRepository(prisma);
   const kafka = createKafkaClient(config);
+  const kubernetes =
+    process.env.PREVIEWFORGE_KUBERNETES_ENABLED === "true"
+      ? createKubernetesResourceClient()
+      : undefined;
   const afterClaim = config.build
-    ? createBuildAfterClaim({ config: config.build, deployments, projects })
+    ? createBuildAfterClaim({
+        config: config.build,
+        deployments,
+        projects,
+        ...(kubernetes === undefined ? {} : { kubernetes }),
+      })
     : undefined;
   const controller = new AbortController();
   let shuttingDown = false;
@@ -104,6 +120,7 @@ function createBuildAfterClaim(input: {
   config: WorkerBuildConfig;
   deployments: DeploymentRepository;
   projects: ProjectRepository;
+  kubernetes?: ReturnType<typeof createKubernetesResourceClient>;
 }): NonNullable<ConsumerRuntime["afterClaim"]> {
   const tokenProvider = new GitHubInstallationTokenProvider({
     appId: input.config.githubAppId,
@@ -144,10 +161,70 @@ function createBuildAfterClaim(input: {
       },
       { sourceClient, buildkit, deployments: input.deployments },
     );
+    if (result.kind === "DEPLOYING" && input.kubernetes !== undefined) {
+      try {
+        const rolloutTimeoutMs = readOptionalDuration(
+          "PREVIEWFORGE_ROLLOUT_TIMEOUT_MS",
+          process.env.PREVIEWFORGE_ROLLOUT_TIMEOUT_MS,
+        );
+        const pollIntervalMs = readOptionalDuration(
+          "PREVIEWFORGE_ROLLOUT_POLL_INTERVAL_MS",
+          process.env.PREVIEWFORGE_ROLLOUT_POLL_INTERVAL_MS,
+        );
+        const healthCheckTimeoutMs = readOptionalDuration(
+          "PREVIEWFORGE_HEALTHCHECK_TIMEOUT_MS",
+          process.env.PREVIEWFORGE_HEALTHCHECK_TIMEOUT_MS,
+        );
+        const reconciliation = await reconcilePreviewDeployment(
+          {
+            event,
+            imageReference: buildInput.imageReference,
+            imageDigest: result.digest,
+            containerPort: project.containerPort,
+            healthPath: project.healthPath,
+            ...(() => {
+              const healthCheckUrl = resolveHealthCheckUrl(
+                process.env.PREVIEWFORGE_HEALTHCHECK_URL_TEMPLATE,
+                `preview-${event.environmentId}.previewforge.local`,
+                project.healthPath,
+              );
+              return healthCheckUrl === undefined ? {} : { healthCheckUrl };
+            })(),
+            ...(rolloutTimeoutMs === undefined ? {} : { rolloutTimeoutMs }),
+            ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),
+            ...(healthCheckTimeoutMs === undefined ? {} : { healthCheckTimeoutMs }),
+          },
+          {
+            kubernetes: createKubernetesReconciler(input.kubernetes),
+            deployments: input.deployments,
+            rollout: { kubernetes: input.kubernetes, healthCheck: httpHealthCheck },
+          },
+        );
+        if (reconciliation.kind === "SUPERSEDED") return "SUPERSEDED";
+        if (reconciliation.kind === "FAILED") return "FAILED";
+        return "PROCESSED";
+      } catch (error) {
+        return persistKubernetesFailure({
+          deployments: input.deployments,
+          deploymentId: claim.deploymentId,
+          commitSha: event.commitSha,
+          error,
+        });
+      }
+    }
     if (result.kind === "DEPLOYING") return "PROCESSED";
     if (result.kind === "SUPERSEDED") return "SUPERSEDED";
     return "FAILED";
   };
+}
+
+function readOptionalDuration(name: string, value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 24 * 60 * 60 * 1_000) {
+    throw new Error(`Invalid worker configuration: ${name} is invalid`);
+  }
+  return parsed;
 }
 
 async function consumeDeployment(

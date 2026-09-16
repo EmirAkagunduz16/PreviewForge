@@ -37,14 +37,14 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Resolve and persist immutable image digest.
 - Acceptance: a sample public and private repository build; credentials are absent from context, layers, and logs.
 
-## M5 — Kubernetes preview reconciliation (active)
+## M5 — Kubernetes preview reconciliation (complete)
 
 - Create kind cluster bootstrap and a conformant Gateway controller.
 - Reconcile namespace policy, Deployment, Service, Secret, and HTTPRoute.
 - Implement rollout and configurable HTTP health checking.
-- Acceptance: an immutable digest becomes reachable through a preview hostname and a stale deployment cannot replace it.
+- Acceptance: complete. On 2026-09-16, real kind acceptance passed 3/3 against disposable PostgreSQL, kind, registry, and Envoy Gateway; see the [session evidence](../reports/session-2026-09-15-m5-kind-acceptance.md).
 
-## M6 — Dashboard and live logs (week 6)
+## M6 — Dashboard and live logs (active) — week 6
 
 - Implement project list, active previews, deployment detail, pipeline stages, history, and SSE logs with resume cursor.
 - Add write-only environment-variable management.

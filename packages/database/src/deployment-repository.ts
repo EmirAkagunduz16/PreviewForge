@@ -92,6 +92,18 @@ type DeploymentGuardRow = Prisma.DeploymentGetPayload<{
 export class DeploymentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async isDesired(deploymentId: string, desiredCommitSha: string): Promise<boolean> {
+    const deployment = await this.prisma.deployment.findFirst({
+      where: {
+        id: deploymentId,
+        commitSha: desiredCommitSha,
+        environment: { desiredCommitSha },
+      },
+      select: { id: true },
+    });
+    return deployment !== null;
+  }
+
   transition(input: DeploymentTransitionInput): Promise<DeploymentTransitionResult> {
     return transitionDeployment(this.prisma, input);
   }

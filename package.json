@@ -17,11 +17,13 @@
     "generate": "pnpm --filter @previewforge/database generate",
     "infra:down": "node scripts/local-infra.mjs down",
     "infra:logs": "node scripts/local-infra.mjs logs -f",
+    "kube:bootstrap": "bash scripts/kubernetes/bootstrap-kind.sh",
     "infra:up": "node scripts/local-infra.mjs up -d --wait",
     "test": "turbo run test",
     "test:acceptance": "pnpm test:acceptance:m3 && pnpm test:acceptance:build",
     "test:acceptance:build": "pnpm --filter @previewforge/worker test:build:integration && pnpm --filter @previewforge/worker test:acceptance:m4",
     "test:acceptance:m3": "pnpm --filter @previewforge/worker test:acceptance:restart",
+    "test:acceptance:m5": "pnpm --filter @previewforge/worker test:acceptance:m5",
     "test:integration": "pnpm --filter @previewforge/database test:integration && pnpm --filter @previewforge/api test:integration && pnpm --filter @previewforge/worker test:integration",
     "typecheck": "turbo run typecheck"
   },

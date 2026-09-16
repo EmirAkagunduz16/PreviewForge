@@ -6,7 +6,7 @@ The first release supports one GitHub repository, one Dockerfile, one HTTP conta
 
 ## Status
 
-The repository is in M5, the Kubernetes preview-reconciliation phase. M0 through M4 are complete and archived with evidence. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
+The repository is in M6, the dashboard and live-logs phase. M0 through M5 are complete and archived with evidence. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
 
 ## Architecture at a glance
 

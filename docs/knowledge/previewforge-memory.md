@@ -1,11 +1,11 @@
 ---
 title: PreviewForge project memory
 status: active
-updated: 2026-09-14
+updated: 2026-09-16
 tags:
   - project/previewforge
   - architecture/control-plane
-  - delivery/m4
+  - delivery/m5
 ---
 
 # PreviewForge project memory
@@ -25,6 +25,7 @@ See [MVP scope](../product/mvp-scope.md) and [foundation research](../research/2
 - M2 is complete. GitHub App OAuth/session handling, verified installation ownership, authorized repository import, raw-byte webhook verification, durable delivery deduplication, source ordering, deployment intent, and close deletion intent are integrated and independently tested.
 - M3 is complete and archived. Durable Kafka contracts, PostgreSQL relay/claim state, bounded retries, receipts, desired-SHA fencing, real broker restart acceptance, and worker shutdown are verified; the local one-broker/no-volume limitation remains.
 - M4 is complete. Source acquisition, the rootless BuildKit adapter, desired-SHA-guarded digest persistence, hosted-runner provisioning, checksum-pinned binaries, and the real build/push/digest harness are implemented. Hosted runs `34860645607`, `34864066506`, and `34864803550` proved the RootlessKit path, private/public fixtures, source failure, BuildKit timeout classification, credential-free build boundary, digest persistence, stale-SHA supersession, and cleanup. Duplicate delivery and retry idempotency are covered by the completed M3 real Kafka/PostgreSQL acceptance.
+- M5 is complete. Real kind acceptance on 2026-09-16 passed 3/3 against disposable PostgreSQL, registry, kind, and Envoy Gateway; it verified digest-backed routed readiness, failure/supersession outcomes, Secret removal, ownership-safe deletion, and cleanup. See the [canonical M5 session report](../reports/session-2026-09-15-m5-kind-acceptance.md); production worker RBAC and production CNI enforcement remain M8 risks.
 - The canonical M4 topology keeps rootless BuildKit and a plain-HTTP registry in one RootlessKit `slirp4netns` namespace, keeps `--disable-host-loopback`, exposes only registry loopback `127.0.0.1:5000`, and reaches BuildKit through a Unix socket. No Docker socket, privileged mode, `apparmor=unconfined` container/runtime flag, BuildKit TCP listener, or global AppArmor/sysctl weakening is accepted. Ubuntu's named per-binary unconfined RootlessKit profile is distinct from those forbidden global/runtime relaxations.
 - PostgreSQL is authoritative. Kafka is an at-least-once transport behind a transactional outbox; Redis is deliberately deferred until a measured need exists.
 - The API remains one modular NestJS application and the worker remains independently scalable; a new network service requires an ADR.
@@ -54,4 +55,4 @@ See [deployment state machine](../architecture/deployment-state-machine.md), [th
 
 ## How to resume
 
-Use [the roadmap](../delivery/roadmap.md) for milestone status and [the active backlog](../backlog/active.md) for the next unfinished action. M3 and M4 are complete; M5 Kubernetes preview reconciliation is the next planned milestone. Read this file when a durable invariant or decision is needed; it is an index, not a progress log. Update it only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.
+Use [the roadmap](../delivery/roadmap.md) for milestone status and [the active backlog](../backlog/active.md) for the next unfinished action. M3 through M5 are complete; M6 dashboard/live-log work is current. Read this file when a durable invariant or decision is needed; it is an index, not a progress log. Update it only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.
