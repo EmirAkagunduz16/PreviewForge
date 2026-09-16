@@ -3,7 +3,7 @@ id: RPT-2026-09-14-m4-rootless-host-prerequisite
 type: incident
 status: verified
 date: 2026-09-14
-vault_sync: pending
+vault_sync: synced
 ---
 
 # M4 rootless BuildKit host prerequisite
