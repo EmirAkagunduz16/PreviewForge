@@ -229,7 +229,7 @@ to root. Do not create a new service or modify protected root-owned report files
   disposable OAuth stub and fixture set; see the [completion evidence report](../reports/session-2026-09-16-m6-dashboard.md).
   M6 remains active because integrated M6 acceptance and the open M5 health drift are not
   closed.
-- Implementation/evidence commit: `41085ef`.
+- Implementation/evidence commit: `ce731a8`.
 - Dependency: M6-QUERY-API, M6-ENV-VARS, and M6-SSE-API.
 - Objective and owned paths: build the authenticated project/preview/history/detail UI,
   resumable logs, and write-only environment-key editor in `apps/web/app/`, the Next
