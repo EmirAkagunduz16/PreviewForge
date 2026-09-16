@@ -334,5 +334,5 @@ next_action: Define the M7 execution contract before implementation.
 blocker: none
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
 evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. DASHBOARD evidence is docs/reports/session-2026-09-16-m6-dashboard.md. M5 health drift resolution and two green real acceptance runs are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md. Integrated PostgreSQL/BuildKit/kind/Gateway/browser evidence and residue checks are docs/reports/session-2026-09-16-m6-acceptance-progress.md.
-evidence_commit: pending-root-commit
+evidence_commit: 195db76
 ```
