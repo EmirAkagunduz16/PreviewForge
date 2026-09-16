@@ -12,21 +12,10 @@ evidence or focused M6 ENV-VARS proof. See the [M5 execution plan](../plans/m5-k
 ## M6 — dashboard and live logs
 
 Implement remaining slices sequentially with one Luna medium agent; do not run parallel
-lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, M6-ENV-VARS, and M6-LOG-DURABILITY are
+lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, M6-ENV-VARS, M6-LOG-DURABILITY, and M6-SSE-API are
 complete and archived with evidence.
 The [M6 execution plan](../plans/m6-dashboard-live-logs.md) contains the approved locked
 contracts and sequential ownership/acceptance matrix. M6 as a whole remains active.
-
-- id: M6-SSE-API
-  status: queued
-  acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-SSE-API
-  owned_paths: [apps/api/src/live-output/, apps/api/src/app.module.ts, apps/api/test/, packages/database/src/log-chunk-repository.ts]
-  verification_command: pnpm --filter @previewforge/api test; real HTTP SSE integration over disposable PostgreSQL
-  next_action: After M6-QUERY-API and M6-LOG-DURABILITY, add authenticated owner-scoped replay/live SSE using Last-Event-ID, a PostgreSQL status reread, explicit retention-gap event, heartbeat, and disconnect cleanup.
-  blocker: Depends on M6-QUERY-API and M6-LOG-DURABILITY.
-  acceptance: Real HTTP stream verifies replay cursor, new chunks and status, expired-cursor gap, cross-owner denial, reconnect behavior, and prompt resource release.
-  evidence: not-run; implementation has not started.
-  evidence_commit: not-run
 
 - id: M6-DASHBOARD
   status: queued

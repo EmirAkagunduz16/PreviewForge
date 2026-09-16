@@ -203,19 +203,25 @@ to root. Do not create a new service or modify protected root-owned report files
   high-water means next sequence to allocate, and `createdAt` is not approximated by
   `emittedAt`.
 - Implementation/evidence commit: `d6d3f9ff59d02bc5646a3d795dabbf72b95736c5`.
-- Next action: proceed to M6-SSE-API. Resolve and rerun OPS-M5-HEALTH-ACCEPTANCE-DRIFT
-  before integrated M6 acceptance.
+- Next action: M6-SSE-API is complete; proceed to M6-DASHBOARD. Resolve and rerun
+  OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
 
 ### M6-SSE-API
 
+- Status: complete on 2026-09-16; implementation commit
+  `ef365b0113545a61cd87ebc66705590e54a5373b`. This closes the SSE API slice only; M6
+  remains active.
 - Dependency: M6-QUERY-API and M6-LOG-DURABILITY.
 - Objective and owned paths: add authenticated owner-scoped replay/live HTTP SSE in
   `apps/api/src/live-output/`, API wiring/tests, and the owned log repository read seam.
-- Acceptance and verification: a real HTTP stream over disposable PostgreSQL proves
-  cursor replay, refreshed status, gap signaling, cross-owner denial, reconnect, and
-  disconnect cleanup; run API tests plus that integration test.
-- Next action: implement only after both dependencies pass; preserve native SSE and the
-  numeric durable cursor contract.
+- Acceptance and verification: real HTTP/PostgreSQL SSE acceptance passed 1/1 on freshly
+  migrated disposable database `previewforge_m6_sse_20260916`. It proved initial status,
+  cursor replay/live logs, status transition, reconnect, retention gap, heartbeat,
+  unauthenticated 401, foreign/absent 404, and disconnect cleanup. Fixture users,
+  projects, deployments, chunks, and outbox rows were 0/0/0/0/0; the database was
+  dropped. `pnpm check` passed; see [the SSE report](../reports/session-2026-09-16-m6-sse-api.md).
+- Next action: proceed sequentially to M6-DASHBOARD. Keep PostgreSQL authoritative and
+  resolve/rerun OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
 
 ### M6-DASHBOARD
 
@@ -250,7 +256,7 @@ to root. Do not create a new service or modify protected root-owned report files
 | M6-PRODUCT-CONTRACT | Schema/API/UI become incompatible if the approved scope or retention contract is changed implicitly. | Apply the 2026-09-16 explicit user approval to the plan and dependent implementation contracts. | Project-shared variables, exact UTF-8 byte limits, createdAt age cutoff, oldest-first eviction, and named SSE `gap` event match the locked decision report. | Any implementation using preview-scoped values, different limits/cutoff, or silent cursor loss fails direct acceptance. | Human approval recorded; no runtime required for this completed gate. |
 | M6-ENV-VARS | Secrets leak through read APIs, cross-owner writes, storage, Kafka/build args/logs, or wrong preview runtime. | Owner writes/replaces/deletes individual keys; non-owner attempts access; build and preview consume the configured values. | Database stores authenticated ciphertext bound to project/key; API lists names only; worker gets plaintext only after build and M5 applies it to the owned preview Secret; no value appears in response/outbox/build args/logs. | Deliberately return a value, remove AAD/owner checks, or pass variables into BuildKit and tests/acceptance fail. | API + worker + disposable PostgreSQL and real disposable kind for Pod environment/Secret proof. |
 | M6-LOG-DURABILITY | Build output is lost, reordered, unbounded, duplicated, or rendered as executable markup. | Emit concurrent multi-chunk stdout/stderr/build events including oversized UTF-8 and terminal-control fixtures; restart/read from PostgreSQL. | Ordered unique sequences, approved chunk/retention caps, explicit truncation, safe text, and durable reload; build process output is streamed instead of buffered only until exit. | Disable cap, sequence lock/fence, or text escaping and limit/order/XSS assertions fail. | Disposable PostgreSQL; real BuildKit fixture for streamed progress and cleanup. |
-| M6-SSE-API | Disconnects lose/duplicate log output, stale status is shown, or a stream bypasses ownership/auth. | Connect with/without a cursor, append logs and transition status during the stream, reconnect, use an expired cursor, and disconnect. | Authenticated owner receives current status, ordered replay after Last-Event-ID, live new chunks/status, explicit retention-gap marker when applicable, heartbeat, and prompt stream cleanup; cross-owner request is denied. | Remove cursor filtering or owner check, or omit DB status re-read on reconnect; integration oracle fails. | API over disposable PostgreSQL; real HTTP SSE stream (not only mocked Observable). |
+| M6-SSE-API | Disconnects lose/duplicate log output, stale status is shown, or a stream bypasses ownership/auth. | Connect with/without a cursor, append logs and transition status during the stream, reconnect, use an expired cursor, and disconnect. | Authenticated owner receives current status, ordered replay after Last-Event-ID, live new chunks/status, explicit retention-gap marker when applicable, heartbeat, and prompt stream cleanup; cross-owner request is denied. | Removing Last-Event-ID forwarding caused the real HTTP/PostgreSQL test to receive sequence 1 instead of expected 2 and fail; restored forwarding passed. | Verified 2026-09-16 on fresh `previewforge_m6_sse_20260916`: real HTTP SSE 1/1, status/log replay, transition, gap, heartbeat, disconnect, zero fixtures; database dropped. |
 | M6-DASHBOARD | Reload/reconnect loses state, project navigation hides active previews/history, or users can read stored secret values. | Sign in, load multiple projects/previews/attempts, open detail, refresh/disconnect/reconnect logs, update one env key and delete another. | Browser renders owned project/PR/deployment history and ordered stage states; live logs resume; env editor shows key names and write controls but never existing values; sign-out clears session. | Disable auth, cursor resume, secret redaction, or attempt ordering and browser/network assertions fail. | Web + API in local browser with real session and PostgreSQL-backed fixtures. |
 | M6-ACCEPTANCE | Mock/unit success hides a broken authenticated end-to-end dashboard/log/secret workflow. | Run the integrated workflow: owner/non-owner queries, write-only env change, real digest preview, live build logs, reload/reconnect, and a durable failure. | Real API/DB/runtime/browser evidence verifies ownership, encrypted persistence, Pod injection, status/history, cursor continuity, failure redaction, and cleanup. | Remove an owner/SHA/cursor/secret guard temporarily or use a wrong cursor/owner; the direct acceptance target must fail before restoration. | Disposable PostgreSQL, Kafka/worker, existing local BuildKit/registry, disposable kind/Gateway, and browser; unavailable dependency is `not-run`, never replaced with a mock-only pass. |
 
@@ -296,14 +302,13 @@ to root. Do not create a new service or modify protected root-owned report files
   real PostgreSQL integration tests, including cross-user isolation and pagination.
 - Deployment status/stages use the shared transition contract; attempt history and
   failure metadata remain redacted and durable.
-- Environment scope and log retention are locked by the 2026-09-16 approval; implementation
-  remains outstanding. Environment
+- Environment scope and log retention are locked by the 2026-09-16 approval. Environment
   values are encrypted at rest with authenticated project/key binding, write-only at
   the API boundary, injected only into the preview Pod, and absent from BuildKit/Kafka/
   API responses/logs.
-- Log source streams worker BuildKit progress into ordered durable chunks with approved
-  finite bounds; SSE resumes from cursor, marks retention gaps, refreshes status, and
-  closes cleanly on disconnect.
+- M6-LOG-DURABILITY and M6-SSE-API are complete: BuildKit output streams into bounded
+  durable chunks; SSE resumes from cursor, marks retention gaps, refreshes status, emits
+  heartbeat comments, and closes cleanly on disconnect.
 - Browser refresh/reconnect preserves deployment status and retained history; secret
   reads remain redacted. The UI provides project list, active previews, attempt history,
   deployment detail/stages, live logs, and environment-key management.
@@ -319,9 +324,9 @@ status: active
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: Implement M6-SSE-API next, then dashboard and integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated acceptance. M6 remains active.
-blocker: Product contract, ENV-VARS, and LOG-DURABILITY are closed. SSE, dashboard, and integrated acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
+next_action: Implement M6-DASHBOARD next, then integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated acceptance. M6 remains active.
+blocker: Product contract, ENV-VARS, LOG-DURABILITY, and SSE are closed. Dashboard and integrated acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY PostgreSQL and real BuildKit evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
-evidence_commit: d6d3f9ff59d02bc5646a3d795dabbf72b95736c5
+evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
+evidence_commit: ef365b0113545a61cd87ebc66705590e54a5373b
 ```

@@ -22,3 +22,4 @@
 | RPT-2026-09-16-m6-env-vars | session | verified | [M6 ENV-VARS evidence](session-2026-09-16-m6-env-vars.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20Environment%20Variables.md) |
 | RPT-2026-09-16-m5-health-acceptance-drift | incident | open | [M5 health acceptance drift](incident-2026-09-16-m5-health-acceptance-drift.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M5%20Health%20Acceptance%20Drift.md) |
 | RPT-2026-09-16-m6-log-durability-checkpoint | session | verified | [M6 LOG-DURABILITY completion evidence](session-2026-09-16-m6-log-durability-checkpoint.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20Log%20Durability%20Checkpoint.md) |
+| RPT-2026-09-16-m6-sse-api | session | verified | [M6 SSE API evidence](session-2026-09-16-m6-sse-api.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20SSE%20API.md) |
