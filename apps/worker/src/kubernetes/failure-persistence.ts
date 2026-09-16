@@ -60,6 +60,15 @@ export function classifyKubernetesFailure(error: unknown): KubernetesFailure {
     };
   }
 
+  if (code === "ENVIRONMENT_VARIABLE_DECRYPTION_FAILED") {
+    return {
+      stage: "CONFIGURATION",
+      code,
+      message: "Preview environment configuration could not be authenticated",
+      retryable: false,
+    };
+  }
+
   if (code === "PREVIEW_SUPERSEDED") {
     return {
       stage: "KUBERNETES",

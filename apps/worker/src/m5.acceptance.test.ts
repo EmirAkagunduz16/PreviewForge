@@ -6,8 +6,11 @@ import {
   createPrismaClient,
   DeploymentRepository,
   type PrismaClient,
+  ProjectEnvironmentRepository,
 } from "@previewforge/database";
+import { CredentialCipher, projectEnvironmentAssociatedData } from "@previewforge/security";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { resolveBuildInput } from "./build/build-input.js";
 import { createKubernetesResourceClient } from "./kubernetes/client.js";
 import {
   createKubernetesReconciler,
@@ -22,6 +25,7 @@ import {
   renderPreviewResources,
 } from "./kubernetes/resource-renderer.js";
 import type { HealthCheckResult } from "./kubernetes/rollout.js";
+import { loadProjectEnvironment } from "./runtime/project-environment.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 const imageReference = process.env.M5_IMAGE_REFERENCE;
@@ -91,19 +95,22 @@ describe("M5 real Kubernetes preview acceptance", () => {
         try {
           await prisma.outboxEvent.deleteMany({ where: { aggregateId: fixture.deploymentId } });
           await prisma.user.delete({ where: { id: fixture.userId } });
-          const [user, project, environment, deployment, outbox] = await Promise.all([
-            prisma.user.findUnique({ where: { id: fixture.userId } }),
-            prisma.project.findUnique({ where: { id: fixture.projectId } }),
-            prisma.previewEnvironment.findUnique({ where: { id: fixture.environmentId } }),
-            prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
-            prisma.outboxEvent.count({ where: { aggregateId: fixture.deploymentId } }),
-          ]);
-          expect({ user, project, environment, deployment, outbox }).toEqual({
+          const [user, project, environment, deployment, outbox, environmentVariables] =
+            await Promise.all([
+              prisma.user.findUnique({ where: { id: fixture.userId } }),
+              prisma.project.findUnique({ where: { id: fixture.projectId } }),
+              prisma.previewEnvironment.findUnique({ where: { id: fixture.environmentId } }),
+              prisma.deployment.findUnique({ where: { id: fixture.deploymentId } }),
+              prisma.outboxEvent.count({ where: { aggregateId: fixture.deploymentId } }),
+              prisma.projectEnvironmentVariable.count({ where: { projectId: fixture.projectId } }),
+            ]);
+          expect({ user, project, environment, deployment, outbox, environmentVariables }).toEqual({
             user: null,
             project: null,
             environment: null,
             deployment: null,
             outbox: 0,
+            environmentVariables: 0,
           });
         } catch (error) {
           firstCleanupError ??= error;
@@ -362,7 +369,34 @@ describe("M5 real Kubernetes preview acceptance", () => {
     const secretValue = `m5-test-only-${randomUUID()}`;
     await moveToDeploying(fixture);
     const event = eventFor(fixture);
-    const environment = { [secretKey]: secretValue };
+    const acceptanceCipher = new CredentialCipher(Buffer.alloc(32, 17));
+    await prisma.projectEnvironmentVariable.create({
+      data: {
+        projectId: fixture.projectId,
+        key: secretKey,
+        encryptedValue: acceptanceCipher.encrypt(
+          secretValue,
+          projectEnvironmentAssociatedData(fixture.projectId, secretKey),
+        ),
+      },
+    });
+    const environment = await loadProjectEnvironment(
+      new ProjectEnvironmentRepository(prisma),
+      acceptanceCipher,
+      fixture.projectId,
+    );
+    expect(environment).toEqual({ [secretKey]: secretValue });
+    expect(JSON.stringify(event)).not.toContain(secretValue);
+    const buildInput = resolveBuildInput(
+      event,
+      {
+        installationId: event.installationId,
+        repositoryFullName: event.repositoryFullName,
+        dockerfilePath: "Dockerfile",
+      },
+      { registryHost: "registry.local" },
+    );
+    expect(JSON.stringify(buildInput)).not.toContain(secretValue);
 
     const result = await reconcilePreviewDeployment(
       reconcileInput(event, "/", 120_000, configuredImageDigest, environment),

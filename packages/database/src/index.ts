@@ -79,6 +79,11 @@ export {
 } from "./outbox-relay-repository.js";
 export type { PrismaClient } from "./prisma-client.js";
 export { createPrismaClient } from "./prisma-client.js";
+export type { ProjectEnvironmentVariableRecord } from "./project-environment-repository.js";
+export {
+  ProjectEnvironmentLimitError,
+  ProjectEnvironmentRepository,
+} from "./project-environment-repository.js";
 export type { ProjectImportInput, ProjectImportRecord } from "./project-repository.js";
 export { ProjectIdentityConflictError, ProjectRepository } from "./project-repository.js";
 export type {

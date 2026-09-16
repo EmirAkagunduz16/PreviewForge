@@ -1,4 +1,5 @@
 import { kafkaTopics } from "@previewforge/contracts";
+import { decodeCredentialEncryptionKey } from "@previewforge/security";
 
 export const DEFAULT_KAFKA_TOPICS = kafkaTopics;
 
@@ -11,6 +12,7 @@ export type WorkerConfig = {
   kafkaClientId: string;
   kafkaGroupId: string;
   kafkaTopics: typeof DEFAULT_KAFKA_TOPICS;
+  encryptionKey?: Buffer;
   build?: WorkerBuildConfig;
 };
 
@@ -47,6 +49,12 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
   const kafkaGroupId = requiredName(environment, "KAFKA_GROUP_ID");
   const brokers = parseKafkaBrokers(kafkaBrokerValue);
   const build = parseBuildConfig(environment);
+  const encryptionKey = parseEncryptionKey(environment.ENCRYPTION_KEY);
+  if (environment.PREVIEWFORGE_KUBERNETES_ENABLED === "true" && encryptionKey === undefined) {
+    throw new Error(
+      "Invalid worker configuration: ENCRYPTION_KEY is required when Kubernetes is enabled",
+    );
+  }
 
   return {
     nodeEnv,
@@ -55,8 +63,18 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
     kafkaClientId,
     kafkaGroupId,
     kafkaTopics: DEFAULT_KAFKA_TOPICS,
+    ...(encryptionKey === undefined ? {} : { encryptionKey }),
     ...(build === undefined ? {} : { build }),
   };
+}
+
+function parseEncryptionKey(value: string | undefined): Buffer | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return decodeCredentialEncryptionKey(value);
+  } catch {
+    throw new Error("Invalid worker configuration: ENCRYPTION_KEY must decode to 32 bytes");
+  }
 }
 
 function parseBuildConfig(environment: NodeJS.ProcessEnv): WorkerBuildConfig | undefined {

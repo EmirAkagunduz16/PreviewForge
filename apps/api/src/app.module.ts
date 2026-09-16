@@ -4,6 +4,7 @@ import {
   AuthInstallationRepository,
   createPrismaClient,
   DashboardRepository,
+  ProjectEnvironmentRepository,
   ProjectRepository,
   WebhookRepository,
 } from "@previewforge/database";
@@ -18,6 +19,10 @@ import {
   DashboardService,
 } from "./dashboard/index.js";
 import { DatabaseModule } from "./database/database.module.js";
+import {
+  EnvironmentVariablesController,
+  EnvironmentVariablesService,
+} from "./environment-variables/index.js";
 import { GitHubClient } from "./github/github-client.js";
 import { HealthController } from "./health.controller.js";
 import { InstallationsController } from "./installations/installations.controller.js";
@@ -64,6 +69,7 @@ export class AppModule {
     const authRepository = new AuthInstallationRepository(prisma);
     const projectRepository = new ProjectRepository(prisma);
     const dashboardRepository = new DashboardRepository(prisma);
+    const environmentVariablesRepository = new ProjectEnvironmentRepository(prisma);
     const webhookRepository = new WebhookRepository(prisma);
 
     return {
@@ -76,6 +82,7 @@ export class AppModule {
         ProjectsController,
         DashboardProjectsController,
         DashboardDeploymentsController,
+        EnvironmentVariablesController,
         GithubWebhookController,
         NotFoundController,
       ],
@@ -95,6 +102,17 @@ export class AppModule {
         { provide: PROJECT_AUTH, useExisting: AuthService },
         { provide: DASHBOARD_AUTH, useExisting: AuthService },
         { provide: DASHBOARD_REPOSITORY, useValue: dashboardRepository },
+        {
+          provide: EnvironmentVariablesService,
+          inject: [AuthService],
+          useFactory: (auth: AuthService) =>
+            new EnvironmentVariablesService(
+              auth,
+              environmentVariablesRepository,
+              cipher,
+              runtime.publicBaseUrl,
+            ),
+        },
         {
           provide: DashboardService,
           inject: [DASHBOARD_AUTH, DASHBOARD_REPOSITORY],

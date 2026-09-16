@@ -1,3 +1,4 @@
+import { decodeCredentialEncryptionKey } from "@previewforge/security";
 import { z } from "zod";
 
 export const DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com";
@@ -178,7 +179,12 @@ function parseM2Configuration(
     throw new Error(`Invalid API configuration: ${reasons}`);
   }
 
-  const encryptionKey = decodeEncryptionKey(parsed.data.ENCRYPTION_KEY);
+  let encryptionKey: Buffer;
+  try {
+    encryptionKey = decodeCredentialEncryptionKey(parsed.data.ENCRYPTION_KEY);
+  } catch {
+    throw new Error("Invalid API configuration: ENCRYPTION_KEY must decode to 32 bytes");
+  }
 
   if (nodeEnv === "production" && !parsed.data.PUBLIC_BASE_URL.startsWith("https://")) {
     throw new Error("Invalid API configuration: PUBLIC_BASE_URL must use HTTPS in production");
@@ -212,22 +218,4 @@ function parseM2Configuration(
     sessionTtlSeconds: parsed.data.SESSION_TTL_SECONDS,
     oauthStateTtlSeconds: parsed.data.OAUTH_STATE_TTL_SECONDS,
   };
-}
-
-function decodeEncryptionKey(value: string): Buffer {
-  // Accept the two unambiguous deployment-friendly encodings. A raw secret is
-  // deliberately not accepted: its byte length is too easy to misconfigure.
-  const isHex = /^[0-9a-fA-F]{64}$/.test(value);
-  const isBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(value) && value.length % 4 !== 1;
-  const isBase64Url = /^[A-Za-z0-9_-]*={0,2}$/.test(value) && value.length % 4 !== 1;
-  if (!isHex && !isBase64 && !isBase64Url) {
-    throw new Error("Invalid API configuration: ENCRYPTION_KEY must decode to 32 bytes");
-  }
-  const key = isHex
-    ? Buffer.from(value, "hex")
-    : Buffer.from(value, isBase64 ? "base64" : "base64url");
-  if (key.length !== 32) {
-    throw new Error("Invalid API configuration: ENCRYPTION_KEY must decode to 32 bytes");
-  }
-  return key;
 }

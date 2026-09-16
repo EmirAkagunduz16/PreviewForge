@@ -75,6 +75,12 @@ describe("classifyKubernetesFailure", () => {
       { stage: "HEALTHCHECK", code: "HEALTHCHECK_FAILED", retryable: false },
     ],
     [
+      Object.assign(new Error("Project environment configuration could not be authenticated"), {
+        code: "ENVIRONMENT_VARIABLE_DECRYPTION_FAILED",
+      }),
+      { stage: "CONFIGURATION", code: "ENVIRONMENT_VARIABLE_DECRYPTION_FAILED", retryable: false },
+    ],
+    [
       Object.assign(new Error("connection reset"), { code: "ECONNRESET" }),
       { stage: "KUBERNETES", code: "KUBERNETES_NETWORK_ERROR", retryable: true },
     ],

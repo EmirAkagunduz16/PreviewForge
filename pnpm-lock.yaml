@@ -95,6 +95,9 @@ importers:
       '@previewforge/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@previewforge/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       express:
         specifier: 'catalog:'
         version: 5.2.1
@@ -163,6 +166,9 @@ importers:
       '@previewforge/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@previewforge/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       kafkajs:
         specifier: 2.2.4
         version: 2.2.4
@@ -198,6 +204,9 @@ importers:
       '@previewforge/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@previewforge/security':
+        specifier: workspace:*
+        version: link:../security
       '@prisma/adapter-pg':
         specifier: 7.10.0
         version: 7.10.0
@@ -214,6 +223,18 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.0(@types/node@26.5.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+
+  packages/security:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.0(@types/node@22.20.2)(vite@8.3.0(@types/node@22.20.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
 
 packages:
 

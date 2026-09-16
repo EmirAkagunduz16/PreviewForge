@@ -67,6 +67,21 @@ describe("preview Kubernetes resources", () => {
       (route.spec as { parentRefs: Array<Record<string, string>> }).parentRefs[0],
     ).toMatchObject({ name: "previewforge", namespace: "default" });
   });
+
+  it("rejects non-Kubernetes env identifiers and values beyond the bounded secret contract", () => {
+    expect(() => renderPreviewResources({ ...input, environment: { "bad-name": "x" } })).toThrow(
+      "invalid secret key",
+    );
+    expect(() =>
+      renderPreviewResources({ ...input, environment: { TOKEN: "x".repeat(16 * 1024 + 1) } }),
+    ).toThrow("oversized secret value");
+    expect(() =>
+      renderPreviewResources({
+        ...input,
+        environment: Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`KEY_${i}`, "x"])),
+      }),
+    ).toThrow("too many secret keys");
+  });
 });
 
 describe("KubernetesReconciler", () => {

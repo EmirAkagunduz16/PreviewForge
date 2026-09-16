@@ -1,5 +1,5 @@
+import { CredentialCipher } from "@previewforge/security";
 import { describe, expect, it } from "vitest";
-import { CredentialCipher } from "./credential-cipher.js";
 
 describe("CredentialCipher", () => {
   it("round-trips credentials in a versioned AES-256-GCM envelope", () => {

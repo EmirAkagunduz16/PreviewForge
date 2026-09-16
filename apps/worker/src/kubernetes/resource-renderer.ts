@@ -1,6 +1,9 @@
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const UUID = /^[0-9a-f-]{36}$/iu;
-const SECRET_KEY = /^[A-Za-z0-9._-]+$/u;
+const SECRET_KEY = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/u;
+const MAX_ENVIRONMENT_VARIABLES = 32;
+const MAX_ENVIRONMENT_VALUE_BYTES = 16 * 1024;
+const MAX_ENVIRONMENT_PAYLOAD_BYTES = 512 * 1024;
 
 export const PREVIEW_MANAGED_BY = "previewforge";
 export const PREVIEW_GATEWAY_NAME = "previewforge";
@@ -273,7 +276,20 @@ function validateInput(input: PreviewResourceInput): void {
     throw new Error("containerPort must be a valid TCP port");
   }
   if (!input.healthPath.startsWith("/")) throw new Error("healthPath must be an absolute path");
-  for (const key of Object.keys(input.environment ?? {})) {
-    if (!SECRET_KEY.test(key)) throw new Error("environment contains an invalid secret key");
+  const environment = input.environment ?? {};
+  if (Object.keys(environment).length > MAX_ENVIRONMENT_VARIABLES) {
+    throw new Error("environment contains too many secret keys");
   }
+  let payloadBytes = 0;
+  for (const [key, value] of Object.entries(environment)) {
+    if (!SECRET_KEY.test(key)) throw new Error("environment contains an invalid secret key");
+    if (typeof value !== "string" || value.includes("\0"))
+      throw new Error("environment contains an invalid secret value");
+    const bytes = Buffer.byteLength(value, "utf8");
+    if (bytes > MAX_ENVIRONMENT_VALUE_BYTES)
+      throw new Error("environment contains an oversized secret value");
+    payloadBytes += bytes;
+  }
+  if (payloadBytes > MAX_ENVIRONMENT_PAYLOAD_BYTES)
+    throw new Error("environment secret payload is too large");
 }

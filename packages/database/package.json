@@ -26,7 +26,8 @@
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
-    "@previewforge/contracts": "workspace:*"
+    "@previewforge/contracts": "workspace:*",
+    "@previewforge/security": "workspace:*"
   },
   "devDependencies": {
     "prisma": "7.10.0",

@@ -20,6 +20,7 @@
     "@kubernetes/client-node": "2.0.0",
     "@previewforge/contracts": "workspace:*",
     "@previewforge/database": "workspace:*",
+    "@previewforge/security": "workspace:*",
     "kafkajs": "2.2.4"
   },
   "devDependencies": {

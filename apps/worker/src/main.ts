@@ -3,8 +3,10 @@ import {
   DeploymentClaimRepository,
   DeploymentRepository,
   OutboxRelayRepository,
+  ProjectEnvironmentRepository,
   ProjectRepository,
 } from "@previewforge/database";
+import { CredentialCipher } from "@previewforge/security";
 import type { EachMessagePayload } from "kafkajs";
 import { resolveBuildInput } from "./build/build-input.js";
 import { BuildKitAdapter } from "./build/buildkit-adapter.js";
@@ -23,6 +25,7 @@ import {
 import { persistKubernetesFailure } from "./kubernetes/failure-persistence.js";
 import { httpHealthCheck, resolveHealthCheckUrl } from "./kubernetes/rollout.js";
 import { relayOutboxBatch } from "./outbox-relay.js";
+import { loadProjectEnvironment } from "./runtime/project-environment.js";
 import { GitHubInstallationTokenProvider } from "./source/github-installation-token.js";
 import { GitHubSourceClient } from "./source/github-source.js";
 
@@ -35,6 +38,7 @@ async function main(): Promise<void> {
   const claims = new DeploymentClaimRepository(prisma);
   const deployments = new DeploymentRepository(prisma);
   const projects = new ProjectRepository(prisma);
+  const projectEnvironments = new ProjectEnvironmentRepository(prisma);
   const outbox = new OutboxRelayRepository(prisma);
   const kafka = createKafkaClient(config);
   const kubernetes =
@@ -46,6 +50,10 @@ async function main(): Promise<void> {
         config: config.build,
         deployments,
         projects,
+        projectEnvironments,
+        ...(config.encryptionKey === undefined
+          ? {}
+          : { cipher: new CredentialCipher(config.encryptionKey) }),
         ...(kubernetes === undefined ? {} : { kubernetes }),
       })
     : undefined;
@@ -120,6 +128,8 @@ function createBuildAfterClaim(input: {
   config: WorkerBuildConfig;
   deployments: DeploymentRepository;
   projects: ProjectRepository;
+  projectEnvironments: ProjectEnvironmentRepository;
+  cipher?: CredentialCipher;
   kubernetes?: ReturnType<typeof createKubernetesResourceClient>;
 }): NonNullable<ConsumerRuntime["afterClaim"]> {
   const tokenProvider = new GitHubInstallationTokenProvider({
@@ -163,6 +173,13 @@ function createBuildAfterClaim(input: {
     );
     if (result.kind === "DEPLOYING" && input.kubernetes !== undefined) {
       try {
+        if (input.cipher === undefined)
+          throw new Error("Worker environment encryption is not configured");
+        const environment = await loadProjectEnvironment(
+          input.projectEnvironments,
+          input.cipher,
+          event.projectId,
+        );
         const rolloutTimeoutMs = readOptionalDuration(
           "PREVIEWFORGE_ROLLOUT_TIMEOUT_MS",
           process.env.PREVIEWFORGE_ROLLOUT_TIMEOUT_MS,
@@ -193,6 +210,7 @@ function createBuildAfterClaim(input: {
             ...(rolloutTimeoutMs === undefined ? {} : { rolloutTimeoutMs }),
             ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),
             ...(healthCheckTimeoutMs === undefined ? {} : { healthCheckTimeoutMs }),
+            environment,
           },
           {
             kubernetes: createKubernetesReconciler(input.kubernetes),

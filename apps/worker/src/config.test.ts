@@ -63,6 +63,29 @@ describe("loadWorkerConfig", () => {
     ).toEqual(["[::1]:59092"]);
   });
 
+  it("accepts the shared encryption-key encodings and rejects invalid keys without echoing values", () => {
+    expect(
+      loadWorkerConfig({ ...validEnvironment, ENCRYPTION_KEY: "07".repeat(32) }).encryptionKey,
+    ).toEqual(Buffer.alloc(32, 7));
+    const secret = "not-a-valid-encryption-key";
+    expect(() => loadWorkerConfig({ ...validEnvironment, ENCRYPTION_KEY: secret })).toThrowError(
+      expect.not.objectContaining({ message: expect.stringContaining(secret) }),
+    );
+  });
+
+  it("requires the shared key before enabling Kubernetes reconciliation", () => {
+    expect(() =>
+      loadWorkerConfig({ ...validEnvironment, PREVIEWFORGE_KUBERNETES_ENABLED: "true" }),
+    ).toThrow("ENCRYPTION_KEY is required when Kubernetes is enabled");
+    expect(
+      loadWorkerConfig({
+        ...validEnvironment,
+        PREVIEWFORGE_KUBERNETES_ENABLED: "true",
+        ENCRYPTION_KEY: "09".repeat(32),
+      }).encryptionKey,
+    ).toEqual(Buffer.alloc(32, 9));
+  });
+
   it("parses the all-or-nothing M4 build configuration", () => {
     const configured = loadWorkerConfig({
       ...validEnvironment,
