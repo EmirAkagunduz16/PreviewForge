@@ -52,9 +52,9 @@ fixtures were cleaned from both Kubernetes and PostgreSQL.
 - Independent final M5 review found no actionable P0/P1 findings in the reviewed
   ownership/deadline, desired-SHA, Secret-prune, durable-failure, or acceptance paths.
 
-The accepted source tree was still uncommitted at HEAD
-`769320ae8ba3d11180362564206f611fd9307434`; no commit or push is claimed. Final
-closure verification `pnpm docs:check` passed: **146 local Markdown links across 50
+The verified M5 source and closure evidence were committed as
+`94978ff27fded4547bd79f307dcd331872b7ab49`; no push is claimed. Final closure
+verification `pnpm docs:check` passed: **146 local Markdown links across 50
 files**, 24 repository-external links skipped, and context consistency passed for **7
 roadmap milestones, 5 plans, and 0 active backlog entries**.
 
@@ -89,7 +89,8 @@ roadmap milestones, 5 plans, and 0 active backlog entries**.
   negative workload connectivity remains unverified. Production CNI behavior and
   hostile-tenant isolation remain M8 hardening risks.
 - VictusOS synchronization is complete in `Reports/PreviewForge/2026-09-16 M5 Complete`.
-  Commit/push: not-run; push requires explicit user authorization.
+  Evidence commit: `94978ff27fded4547bd79f307dcd331872b7ab49`. Push: not-run; push requires
+  explicit user authorization.
 
 ## Related links
 

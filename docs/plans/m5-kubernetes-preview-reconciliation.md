@@ -244,5 +244,5 @@ next_action: Define and add scoped M6 dashboard/live-log slices to docs/backlog/
 blocker: none
 acceptance: All M5 exit criteria are complete, including digest-backed Gateway reachability, repeated apply/delete, failed rollout/health, supersession, Secret pruning, ownership guards, and cleanup.
 evidence: Real M5 acceptance passed 1 file/3 tests in 81.62s against disposable PostgreSQL/kind/registry/Envoy; pnpm check passed 15/15 Turbo tasks, worker 159/159, DB 79/79, API 1/1, and worker integration 5/5; final independent review found no M5 P0/P1. See linked report for runtime identity, cleanup, focused checks, and limits.
-evidence_commit: HEAD 769320ae8ba3d11180362564206f611fd9307434; worktree remains uncommitted
+evidence_commit: 94978ff27fded4547bd79f307dcd331872b7ab49
 ```
