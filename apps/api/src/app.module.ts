@@ -4,6 +4,7 @@ import {
   AuthInstallationRepository,
   createPrismaClient,
   DashboardRepository,
+  LogChunkRepository,
   ProjectEnvironmentRepository,
   ProjectRepository,
   WebhookRepository,
@@ -26,6 +27,13 @@ import {
 import { GitHubClient } from "./github/github-client.js";
 import { HealthController } from "./health.controller.js";
 import { InstallationsController } from "./installations/installations.controller.js";
+import {
+  LIVE_OUTPUT_AUTH,
+  LIVE_OUTPUT_DASHBOARD,
+  LIVE_OUTPUT_LOGS,
+  LiveOutputController,
+  LiveOutputService,
+} from "./live-output/index.js";
 import { NotFoundController } from "./not-found.controller.js";
 import {
   PROJECT_AUTH,
@@ -69,6 +77,7 @@ export class AppModule {
     const authRepository = new AuthInstallationRepository(prisma);
     const projectRepository = new ProjectRepository(prisma);
     const dashboardRepository = new DashboardRepository(prisma);
+    const logChunkRepository = new LogChunkRepository(prisma);
     const environmentVariablesRepository = new ProjectEnvironmentRepository(prisma);
     const webhookRepository = new WebhookRepository(prisma);
 
@@ -82,6 +91,7 @@ export class AppModule {
         ProjectsController,
         DashboardProjectsController,
         DashboardDeploymentsController,
+        LiveOutputController,
         EnvironmentVariablesController,
         GithubWebhookController,
         NotFoundController,
@@ -102,6 +112,15 @@ export class AppModule {
         { provide: PROJECT_AUTH, useExisting: AuthService },
         { provide: DASHBOARD_AUTH, useExisting: AuthService },
         { provide: DASHBOARD_REPOSITORY, useValue: dashboardRepository },
+        { provide: LIVE_OUTPUT_AUTH, useExisting: AuthService },
+        { provide: LIVE_OUTPUT_DASHBOARD, useValue: dashboardRepository },
+        { provide: LIVE_OUTPUT_LOGS, useValue: logChunkRepository },
+        {
+          provide: LiveOutputService,
+          inject: [LIVE_OUTPUT_AUTH, LIVE_OUTPUT_DASHBOARD, LIVE_OUTPUT_LOGS],
+          useFactory: (...dependencies: ConstructorParameters<typeof LiveOutputService>) =>
+            new LiveOutputService(...dependencies),
+        },
         {
           provide: EnvironmentVariablesService,
           inject: [AuthService],
