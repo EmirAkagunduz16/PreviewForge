@@ -17,3 +17,4 @@
 | RPT-2026-09-15-m5-limitrange-sdk-default | incident | verified | [M5 LimitRange SDK incident](incident-2026-09-15-m5-limitrange-sdk-default.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M5%20Complete.md) |
 | RPT-2026-09-15-m5-networkpolicy-sdk-from | incident | verified | [M5 NetworkPolicy SDK incident](incident-2026-09-15-m5-networkpolicy-sdk-from.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M5%20Complete.md) |
 | RPT-2026-09-15-session-m5-kind-acceptance | session | verified | [M5 real kind acceptance](session-2026-09-15-m5-kind-acceptance.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M5%20Complete.md) |
+| RPT-2026-09-16-m6-query-api | session | verified | [M6 Query API evidence](session-2026-09-16-m6-query-api.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20Query%20API.md) |

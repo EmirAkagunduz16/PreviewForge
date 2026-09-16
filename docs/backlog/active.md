@@ -6,22 +6,12 @@ No unfinished M5 work remains. M6 is the current milestone. M5 completion eviden
 
 ## M6 — dashboard and live logs
 
-Implement these slices sequentially with one Luna medium agent; do not run parallel
-lanes. The query API may start first. `M6-PRODUCT-CONTRACT` blocks environment-variable
-and log-persistence implementation until the two user-visible choices are approved in
-the [M6 execution plan](../plans/m6-dashboard-live-logs.md). The plan records per-slice
-ownership, dependencies, risk/oracle matrix, acceptance, and handoff evidence.
-
-- id: M6-QUERY-API
-  status: queued
-  acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-QUERY-API
-  owned_paths: [packages/database/src/dashboard-repository.ts, packages/database/src/index.ts, packages/database/test/, apps/api/src/dashboard/, apps/api/src/app.module.ts, apps/api/test/]
-  verification_command: pnpm --filter @previewforge/database test:integration; pnpm --filter @previewforge/api test
-  next_action: Add owner-scoped paginated project, active-preview, deployment-history, and deployment-detail projections with PostgreSQL isolation tests.
-  blocker: None for this first implementation slice; preserve the existing root-owned dirty paths and sequential ledger.
-  acceptance: Real PostgreSQL tests prove owner-only results, absent/non-owner indistinguishability, stable pagination, current preview joins, and attempt/status/failure projections.
-  evidence: not-run; implementation has not started.
-  evidence_commit: not-run
+Implement remaining slices sequentially with one Luna medium agent; do not run parallel
+lanes. M6-QUERY-API is complete and archived with PostgreSQL and HTTP evidence. The
+`M6-PRODUCT-CONTRACT` gate still blocks environment-variable and log-persistence work
+until the two user-visible choices are approved in the [M6 execution plan](../plans/m6-dashboard-live-logs.md).
+The plan records per-slice ownership, dependencies, risk/oracle matrix, acceptance, and
+handoff evidence. M6 as a whole remains active.
 
 - id: M6-PRODUCT-CONTRACT
   status: blocked

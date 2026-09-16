@@ -131,7 +131,12 @@ to root. Do not create a new service or modify protected root-owned report files
   pagination, correct preview joins, and status/attempt projections; run
   `pnpm --filter @previewforge/database test:integration` and
   `pnpm --filter @previewforge/api test`.
-- Next action: implement this slice, then review its query contract before the product gate.
+- Status: complete on 2026-09-16; does not mark M6 complete.
+- Evidence: focused PostgreSQL repository test 1/1; real HTTP/PostgreSQL API test 1/1;
+  API unit tests 53/53; full `pnpm check` passed. Canonical evidence:
+  [M6 Query API session report](../reports/session-2026-09-16-m6-query-api.md).
+- Implementation commit: `12a89d73a0a7dca554316245f2e17429517c6163`.
+- Next action: continue with the blocked product-contract gate; no other M6 slice is closed.
 
 ### M6-PRODUCT-CONTRACT
 
