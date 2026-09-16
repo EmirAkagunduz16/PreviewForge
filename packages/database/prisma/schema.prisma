@@ -138,6 +138,7 @@ model Deployment {
   failureRetryable Boolean?           @map("failure_retryable")
   checkRunId       String?            @map("check_run_id")
   imageDigest      String?            @map("image_digest")
+  logSequenceHighWatermark Int        @default(0) @map("log_sequence_high_watermark")
   startedAt        DateTime?          @map("started_at")
   finishedAt       DateTime?          @map("finished_at")
   leaseToken       String?            @map("lease_token") @db.Uuid
@@ -328,10 +329,12 @@ model LogChunk {
   stage        String
   stream       String
   text         String
+  createdAt    DateTime   @default(now()) @map("created_at")
   emittedAt    DateTime   @default(now()) @map("emitted_at")
   deployment   Deployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
 
   @@unique([deploymentId, sequence])
   @@index([deploymentId, emittedAt])
+  @@index([deploymentId, createdAt])
   @@map("log_chunks")
 }
