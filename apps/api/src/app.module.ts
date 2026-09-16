@@ -3,12 +3,20 @@ import { Module } from "@nestjs/common";
 import {
   AuthInstallationRepository,
   createPrismaClient,
+  DashboardRepository,
   ProjectRepository,
   WebhookRepository,
 } from "@previewforge/database";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
 import type { ApiConfig } from "./config.js";
+import {
+  DASHBOARD_AUTH,
+  DASHBOARD_REPOSITORY,
+  DashboardDeploymentsController,
+  DashboardProjectsController,
+  DashboardService,
+} from "./dashboard/index.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { GitHubClient } from "./github/github-client.js";
 import { HealthController } from "./health.controller.js";
@@ -55,6 +63,7 @@ export class AppModule {
     const cipher = new CredentialCipher(runtime.encryptionKey);
     const authRepository = new AuthInstallationRepository(prisma);
     const projectRepository = new ProjectRepository(prisma);
+    const dashboardRepository = new DashboardRepository(prisma);
     const webhookRepository = new WebhookRepository(prisma);
 
     return {
@@ -65,6 +74,8 @@ export class AppModule {
         AuthController,
         InstallationsController,
         ProjectsController,
+        DashboardProjectsController,
+        DashboardDeploymentsController,
         GithubWebhookController,
         NotFoundController,
       ],
@@ -82,6 +93,14 @@ export class AppModule {
             }),
         },
         { provide: PROJECT_AUTH, useExisting: AuthService },
+        { provide: DASHBOARD_AUTH, useExisting: AuthService },
+        { provide: DASHBOARD_REPOSITORY, useValue: dashboardRepository },
+        {
+          provide: DashboardService,
+          inject: [DASHBOARD_AUTH, DASHBOARD_REPOSITORY],
+          useFactory: (...dependencies: ConstructorParameters<typeof DashboardService>) =>
+            new DashboardService(...dependencies),
+        },
         { provide: PROJECT_INSTALLATION_REPOSITORY, useValue: authRepository },
         { provide: PROJECT_GITHUB, useValue: github },
         { provide: PROJECT_REPOSITORY, useValue: projectRepository },

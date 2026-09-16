@@ -17,6 +17,8 @@ export {
   InstallationIdentityConflictError,
   InstallationOwnershipConflictError,
 } from "./auth-installation-repository.js";
+export type { DashboardCursor, DashboardPageOptions } from "./dashboard-repository.js";
+export { DashboardRepository } from "./dashboard-repository.js";
 export type {
   DeploymentClaimConflictCode,
   DeploymentClaimInput,
