@@ -12,21 +12,10 @@ evidence or focused M6 ENV-VARS proof. See the [M5 execution plan](../plans/m5-k
 ## M6 — dashboard and live logs
 
 Implement remaining slices sequentially with one Luna medium agent; do not run parallel
-lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, and M6-ENV-VARS are complete and archived
-with evidence.
+lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, M6-ENV-VARS, and M6-LOG-DURABILITY are
+complete and archived with evidence.
 The [M6 execution plan](../plans/m6-dashboard-live-logs.md) contains the approved locked
 contracts and sequential ownership/acceptance matrix. M6 as a whole remains active.
-
-- id: M6-LOG-DURABILITY
-  status: in-progress
-  acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-LOG-DURABILITY
-  owned_paths: [packages/database/prisma/schema.prisma, packages/database/prisma/migrations/, packages/database/src/log-chunk-repository.ts, packages/database/src/index.ts, packages/database/test/, apps/worker/src/build/, apps/worker/src/config/, apps/worker/test/]
-  verification_command: pnpm --filter @previewforge/database test:integration; pnpm --filter @previewforge/worker test; disposable PostgreSQL and real BuildKit streaming fixture
-  next_action: Run the real rootless BuildKit/registry log integration fixture using the canonical M4 hosted-runner environment; verify logs by reading them from a fresh repository instance. Fix any runtime failures, then record final evidence before starting M6-SSE-API.
-  blocker: Real BuildKit runtime is unavailable in the local environment (`buildctl` and a local daemon are absent). Do not claim BuildKit acceptance until the real fixture runs. Before integrated M6 acceptance, also resolve and reverify OPS-M5-HEALTH-ACCEPTANCE-DRIFT against the full real M5 target.
-  acceptance: Restart/read tests prove unique ordered chunks of at most 16,384 UTF-8 text bytes, at most 2,097,152 retained text bytes per deployment, age expiry from createdAt older than 30 days, oldest-first eviction, explicit gap and valid next-sequence high-water mark after all rows are evicted, safe plain text, and no environment-value leakage.
-  evidence: Partial implementation evidence recorded in docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md: migration applied to disposable PostgreSQL; repository integration 6/6; full pnpm check passed (database integration 87, API integration 3, worker integration 5; worker unit 170); real BuildKit fixture not-run because no local daemon/buildctl is available.
-  evidence_commit: not-run
 
 - id: M6-SSE-API
   status: queued

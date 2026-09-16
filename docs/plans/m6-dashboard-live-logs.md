@@ -85,11 +85,10 @@ the limits. Canonical evidence: [M6 product-contract decision](../reports/decisi
    replayed.
 
 Secret values remain excluded from build context, image layers, event payloads, API
-responses, and logs. `M6-PRODUCT-CONTRACT` and `M6-ENV-VARS` are closed;
-`M6-LOG-DURABILITY` is unblocked and not implemented. Execute remaining slices
-sequentially under the ownership ledger. Full M5 acceptance has a repeatable health
-classification drift that must be resolved before integrated M6 acceptance (see the
-[incident report](../reports/incident-2026-09-16-m5-health-acceptance-drift.md)).
+responses, and logs. `M6-PRODUCT-CONTRACT`, `M6-ENV-VARS`, and `M6-LOG-DURABILITY` are
+closed. Execute remaining slices sequentially under the ownership ledger. Full M5
+acceptance has a repeatable health classification drift that must be resolved before
+integrated M6 acceptance (see the [incident report](../reports/incident-2026-09-16-m5-health-acceptance-drift.md)).
 
 ## Baseline and sequential ownership ledger
 
@@ -165,7 +164,7 @@ to root. Do not create a new service or modify protected root-owned report files
 
 ### M6-ENV-VARS
 
-- Status: complete; M6 remains active and this does not claim LOG-DURABILITY or
+- Status: complete; M6 remains active and this does not claim SSE, dashboard, or
   integrated M6 acceptance.
 - Dependency: M6-PRODUCT-CONTRACT closed; completed after M6-QUERY-API in the sequential ledger.
 - Objective and owned paths: project-shared encrypted persistence, names-only
@@ -181,31 +180,31 @@ to root. Do not create a new service or modify protected root-owned report files
   integration 3/3, worker integration 5/5. Cleanup: users/projects/deployments/env rows
   0/0/0/0 and no managed namespaces. See [canonical evidence](../reports/session-2026-09-16-m6-env-vars.md).
 - Implementation commit: `9d539481640e4a8734bfcee4a125718ab13661d6`.
-- Next action: proceed sequentially to M6-LOG-DURABILITY. Never include plaintext in
+- Next action: proceed sequentially to M6-SSE-API. Never include plaintext in
   build context/layers, event payloads, API responses, or logs.
 
 ### M6-LOG-DURABILITY
 
-- Status: implementation and PostgreSQL verification are in progress from WIP checkpoint
-  `f7b419d`; not accepted or complete. The schema, transactional repository, worker
-  streaming seam, and tests are present; the additive migration was applied to the
-  disposable PostgreSQL test database. The real BuildKit/registry fixture remains not-run
-  because the local environment has no BuildKit daemon/buildctl. See the
-  [evidence report](../reports/session-2026-09-16-m6-log-durability-checkpoint.md).
+- Status: complete on 2026-09-16. The additive migration, transactional repository,
+  worker streaming seam, and focused tests passed PostgreSQL and real rootless BuildKit
+  acceptance. See the [verified evidence report](../reports/session-2026-09-16-m6-log-durability-checkpoint.md)
+  and [hosted workflow run #14](https://github.com/EmirAkagunduz16/PreviewForge/actions/runs/35115043471).
 - Dependency: M6-PRODUCT-CONTRACT closed; implement after M6-ENV-VARS in the sequential ledger.
 - Objective and owned paths: stream bounded BuildKit output into ordered durable chunks
   via an additive Prisma `LogChunk.createdAt` migration, `packages/database/src/log-chunk-repository.ts`,
   database tests/exports, and worker build/log pipeline, configuration, and tests.
-- Acceptance and verification: disposable PostgreSQL and a real BuildKit streaming
-  fixture prove UTF-8 text chunks <= 16,384 bytes, <= 2,097,152 retained text bytes per
-  deployment, eviction by oldest sequence as needed for the total cap, expiry where
-  `createdAt < now - 30 days`, explicit `event: gap` after evicted cursor history, and
-  safe plain-text output; run database integration and worker tests.
-- Next action: run the real rootless BuildKit/registry fixture in the canonical M4 hosted
-  environment and verify persisted chunks from a fresh repository instance. The migration
-  uses Prisma-compatible PostgreSQL `TIMESTAMP(3)` and defines the high-water value as the
-  next sequence to allocate; do not approximate `createdAt` with `emittedAt`. Keep this
-  slice open until runtime evidence exists.
+- Acceptance and verification: repository integration passed 6/6 on disposable PostgreSQL;
+  full `pnpm check` passed (DB integration 87/87, API 3/3, worker M3 5/5, worker unit
+  170/170). The rootless BuildKit hosted workflow built/pushed a real image and its
+  `test:build:integration` passed 1/1, proving persisted output survives into a fresh
+  repository instance; M4 integration passed 5/5. UTF-8 bounds, retention/eviction,
+  empty-retention high-water gaps, stale-writer rejection, injected rollback, and terminal
+  control stripping were verified. Migration maps Prisma `DateTime` to `TIMESTAMP(3)`;
+  high-water means next sequence to allocate, and `createdAt` is not approximated by
+  `emittedAt`.
+- Implementation/evidence commit: `d6d3f9ff59d02bc5646a3d795dabbf72b95736c5`.
+- Next action: proceed to M6-SSE-API. Resolve and rerun OPS-M5-HEALTH-ACCEPTANCE-DRIFT
+  before integrated M6 acceptance.
 
 ### M6-SSE-API
 
@@ -320,9 +319,9 @@ status: active
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: Implement M6-LOG-DURABILITY next, then SSE, dashboard, and integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before M6 integrated acceptance. M6 remains active.
-blocker: Product contract and ENV-VARS are closed. LOG-DURABILITY, SSE, dashboard, and acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
+next_action: Implement M6-SSE-API next, then dashboard and integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated acceptance. M6 remains active.
+blocker: Product contract, ENV-VARS, and LOG-DURABILITY are closed. SSE, dashboard, and integrated acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: User approved project-shared environment scope and 16 KiB/2 MiB/30-day createdAt retention with explicit SSE gap event on 2026-09-16; decision is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS real DB/API/kind and full quality-gate evidence is docs/reports/session-2026-09-16-m6-env-vars.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md; LOG-DURABILITY remains not implemented.
-evidence_commit: not-run
+evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY PostgreSQL and real BuildKit evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
+evidence_commit: d6d3f9ff59d02bc5646a3d795dabbf72b95736c5
 ```
