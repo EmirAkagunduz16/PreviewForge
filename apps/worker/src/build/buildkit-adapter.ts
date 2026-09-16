@@ -1,19 +1,17 @@
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, posix, resolve } from "node:path";
-import { promisify } from "node:util";
 
-const execFileAsync = promisify(execFile);
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const DEFAULT_BUILD_TIMEOUT_MS = 15 * 60 * 1_000;
-const DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 
 export type BuildKitInfrastructureCode =
   | "BUILDKIT_UNAVAILABLE"
   | "BUILDKIT_TIMEOUT"
   | "BUILDKIT_FAILED"
-  | "BUILDKIT_INVALID_DIGEST";
+  | "BUILDKIT_INVALID_DIGEST"
+  | "BUILDKIT_LOG_PERSISTENCE_FAILED";
 
 export class BuildKitInfrastructureError extends Error {
   override readonly name = "BuildKitInfrastructureError";
@@ -30,25 +28,28 @@ export type BuildKitBuildInput = {
   contextPath: string;
   dockerfilePath: string;
   imageReference: string;
+  onOutput?: (chunk: BuildKitOutputChunk) => Promise<void> | void;
 };
+
+export type BuildKitOutputChunk = { stream: "stdout" | "stderr"; text: string };
 
 export type BuildKitBuildResult = {
   imageReference: string;
   digest: `sha256:${string}`;
 };
 
-type BuildctlRunOptions = { timeout: number; maxBuffer: number };
+type BuildctlRunOptions = { timeout: number };
 type BuildctlRunner = (
   executable: string,
   args: readonly string[],
   options: BuildctlRunOptions,
-) => Promise<{ stdout: string; stderr: string }>;
+  onOutput: (chunk: BuildKitOutputChunk) => Promise<void>,
+) => Promise<void>;
 
 export type BuildKitAdapterOptions = {
   address: string;
   buildctlPath?: string;
   timeoutMs?: number;
-  maxOutputBytes?: number;
   run?: BuildctlRunner;
   tempRoot?: string;
 };
@@ -62,7 +63,6 @@ export class BuildKitAdapter {
   private readonly run: BuildctlRunner;
   private readonly buildctlPath: string;
   private readonly timeoutMs: number;
-  private readonly maxOutputBytes: number;
   private readonly tempRoot: string;
 
   constructor(private readonly options: BuildKitAdapterOptions) {
@@ -70,7 +70,6 @@ export class BuildKitAdapter {
     this.run = options.run ?? defaultBuildctlRunner;
     this.buildctlPath = options.buildctlPath ?? "buildctl";
     this.timeoutMs = positiveInteger(options.timeoutMs ?? DEFAULT_BUILD_TIMEOUT_MS);
-    this.maxOutputBytes = positiveInteger(options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES);
     this.tempRoot = options.tempRoot ?? tmpdir();
   }
 
@@ -101,9 +100,18 @@ export class BuildKitAdapter {
     ] as const;
 
     try {
-      await this.run(this.buildctlPath, args, {
-        timeout: this.timeoutMs,
-        maxBuffer: this.maxOutputBytes,
+      let outputQueue = Promise.resolve();
+      const onOutput = (chunk: BuildKitOutputChunk) => {
+        outputQueue = outputQueue.then(async () => {
+          if (input.onOutput) await input.onOutput(chunk);
+        });
+        return outputQueue.catch(() => {
+          throw new BuildKitInfrastructureError("BUILDKIT_LOG_PERSISTENCE_FAILED", true);
+        });
+      };
+      await this.run(this.buildctlPath, args, { timeout: this.timeoutMs }, onOutput);
+      await outputQueue.catch(() => {
+        throw new BuildKitInfrastructureError("BUILDKIT_LOG_PERSISTENCE_FAILED", true);
       });
       const metadata = await readMetadata(metadataPath);
       const digest = metadata["containerimage.digest"];
@@ -124,10 +132,10 @@ async function defaultBuildctlRunner(
   executable: string,
   args: readonly string[],
   options: BuildctlRunOptions,
-): Promise<{ stdout: string; stderr: string }> {
-  return execFileAsync(executable, [...args], {
-    timeout: options.timeout,
-    maxBuffer: options.maxBuffer,
+  onOutput: (chunk: BuildKitOutputChunk) => Promise<void>,
+): Promise<void> {
+  const child = spawn(executable, [...args], {
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
     // Do not inherit DATABASE_URL, GitHub credentials, registry credentials,
     // or any other worker secret into the build client process.
@@ -137,6 +145,59 @@ async function defaultBuildctlRunner(
       TMPDIR: process.env.TMPDIR ?? "/tmp",
       LANG: "C.UTF-8",
     },
+  });
+  let outputFailure: unknown;
+  let timedOut = false;
+  let queue = Promise.resolve();
+  const consume = (
+    stream: NodeJS.ReadableStream & { setEncoding(encoding: BufferEncoding): unknown },
+    channel: "stdout" | "stderr",
+  ) => {
+    stream.setEncoding("utf8");
+    stream.on("data", (text: string) => {
+      stream.pause();
+      queue = queue
+        .then(() => onOutput({ stream: channel, text }))
+        .then(() => {
+          stream.resume();
+        })
+        .catch((error: unknown) => {
+          outputFailure = error;
+          child.kill("SIGTERM");
+        });
+    });
+    stream.resume();
+  };
+  if (child.stdout) consume(child.stdout, "stdout");
+  if (child.stderr) consume(child.stderr, "stderr");
+  let timeout: NodeJS.Timeout;
+  let forceKill: NodeJS.Timeout | undefined;
+  const completed = new Promise<void>((resolve, reject) => {
+    child.once("error", (error: NodeJS.ErrnoException) => {
+      reject({ code: error.code ?? "BUILDKIT_FAILED" });
+    });
+    child.once("close", (code, signal) => {
+      if (forceKill) clearTimeout(forceKill);
+      void queue.then(() => {
+        if (outputFailure !== undefined) reject(outputFailure);
+        else if (timedOut) reject({ code: "ETIMEDOUT" });
+        else if (code !== 0) reject({ code: signal === "SIGTERM" ? "SIGTERM" : "BUILDKIT_FAILED" });
+        else resolve();
+      });
+    });
+  });
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      forceKill = setTimeout(() => child.kill("SIGKILL"), 1_000);
+      forceKill.unref();
+      reject({ code: "ETIMEDOUT" });
+    }, options.timeout);
+    timeout.unref();
+  });
+  return Promise.race([completed, deadline]).finally(() => {
+    clearTimeout(timeout);
   });
 }
 

@@ -138,7 +138,8 @@ model Deployment {
   failureRetryable Boolean?           @map("failure_retryable")
   checkRunId       String?            @map("check_run_id")
   imageDigest      String?            @map("image_digest")
-  logSequenceHighWatermark Int        @default(0) @map("log_sequence_high_watermark")
+  /// Next deployment-local log sequence to allocate; retained even after pruning.
+  logSequenceHighWatermark BigInt     @default(1) @map("log_sequence_high_watermark")
   startedAt        DateTime?          @map("started_at")
   finishedAt       DateTime?          @map("finished_at")
   leaseToken       String?            @map("lease_token") @db.Uuid

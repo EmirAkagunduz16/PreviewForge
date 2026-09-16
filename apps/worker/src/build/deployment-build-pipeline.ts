@@ -1,4 +1,8 @@
-import type { DeploymentRepository, DeploymentTransitionResult } from "@previewforge/database";
+import type {
+  DeploymentRepository,
+  DeploymentTransitionResult,
+  LogChunkRepository,
+} from "@previewforge/database";
 import type { GitHubSourceClient, GitHubSourceRequest } from "../source/github-source.js";
 import type { BuildKitAdapter, BuildKitBuildResult } from "./buildkit-adapter.js";
 import type { DisposableBuildContext } from "./source-context.js";
@@ -15,6 +19,7 @@ export type DeploymentBuildPipelineDependencies = {
   sourceClient: Pick<GitHubSourceClient, "fetchArchive">;
   buildkit: Pick<BuildKitAdapter, "buildAndPush">;
   deployments: Pick<DeploymentRepository, "transition" | "supersedeIfStale">;
+  logChunks?: Pick<LogChunkRepository, "append">;
   materialize?: typeof materializeSourceContext;
 };
 
@@ -58,6 +63,16 @@ export async function runDeploymentBuildPipeline(
         contextPath: context.contextPath,
         dockerfilePath: context.dockerfilePath,
         imageReference: input.imageReference,
+        onOutput: async ({ stream, text }) => {
+          if (!dependencies.logChunks) return;
+          await dependencies.logChunks.append({
+            deploymentId: input.deploymentId,
+            desiredSha: input.desiredSha,
+            stage: "PUSHING",
+            stream,
+            text,
+          });
+        },
       });
     } catch (error) {
       return await fail(dependencies, input, "PUSHING", classifyBuildFailure(error));

@@ -186,6 +186,12 @@ to root. Do not create a new service or modify protected root-owned report files
 
 ### M6-LOG-DURABILITY
 
+- Status: implementation and PostgreSQL verification are in progress from WIP checkpoint
+  `f7b419d`; not accepted or complete. The schema, transactional repository, worker
+  streaming seam, and tests are present; the additive migration was applied to the
+  disposable PostgreSQL test database. The real BuildKit/registry fixture remains not-run
+  because the local environment has no BuildKit daemon/buildctl. See the
+  [evidence report](../reports/session-2026-09-16-m6-log-durability-checkpoint.md).
 - Dependency: M6-PRODUCT-CONTRACT closed; implement after M6-ENV-VARS in the sequential ledger.
 - Objective and owned paths: stream bounded BuildKit output into ordered durable chunks
   via an additive Prisma `LogChunk.createdAt` migration, `packages/database/src/log-chunk-repository.ts`,
@@ -195,8 +201,11 @@ to root. Do not create a new service or modify protected root-owned report files
   deployment, eviction by oldest sequence as needed for the total cap, expiry where
   `createdAt < now - 30 days`, explicit `event: gap` after evicted cursor history, and
   safe plain-text output; run database integration and worker tests.
-- Next action: implement this next sequential slice after M6-ENV-VARS; do not
-  approximate `createdAt` with `emittedAt`.
+- Next action: run the real rootless BuildKit/registry fixture in the canonical M4 hosted
+  environment and verify persisted chunks from a fresh repository instance. The migration
+  uses Prisma-compatible PostgreSQL `TIMESTAMP(3)` and defines the high-water value as the
+  next sequence to allocate; do not approximate `createdAt` with `emittedAt`. Keep this
+  slice open until runtime evidence exists.
 
 ### M6-SSE-API
 

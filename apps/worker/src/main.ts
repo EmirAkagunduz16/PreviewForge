@@ -2,6 +2,7 @@ import {
   createPrismaClient,
   DeploymentClaimRepository,
   DeploymentRepository,
+  LogChunkRepository,
   OutboxRelayRepository,
   ProjectEnvironmentRepository,
   ProjectRepository,
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
   const prisma = createPrismaClient(config.databaseUrl);
   const claims = new DeploymentClaimRepository(prisma);
   const deployments = new DeploymentRepository(prisma);
+  const logChunks = new LogChunkRepository(prisma);
   const projects = new ProjectRepository(prisma);
   const projectEnvironments = new ProjectEnvironmentRepository(prisma);
   const outbox = new OutboxRelayRepository(prisma);
@@ -49,6 +51,7 @@ async function main(): Promise<void> {
     ? createBuildAfterClaim({
         config: config.build,
         deployments,
+        logChunks,
         projects,
         projectEnvironments,
         ...(config.encryptionKey === undefined
@@ -127,6 +130,7 @@ type ConsumerRuntime = {
 function createBuildAfterClaim(input: {
   config: WorkerBuildConfig;
   deployments: DeploymentRepository;
+  logChunks: LogChunkRepository;
   projects: ProjectRepository;
   projectEnvironments: ProjectEnvironmentRepository;
   cipher?: CredentialCipher;
@@ -169,7 +173,7 @@ function createBuildAfterClaim(input: {
         desiredSha: event.commitSha,
         ...buildInput,
       },
-      { sourceClient, buildkit, deployments: input.deployments },
+      { sourceClient, buildkit, deployments: input.deployments, logChunks: input.logChunks },
     );
     if (result.kind === "DEPLOYING" && input.kubernetes !== undefined) {
       try {

@@ -1,6 +1,6 @@
 import type { DeploymentTransitionResult } from "@previewforge/database";
 import { describe, expect, it, vi } from "vitest";
-import type { BuildKitBuildResult } from "./buildkit-adapter.js";
+import type { BuildKitBuildInput, BuildKitBuildResult } from "./buildkit-adapter.js";
 import { runDeploymentBuildPipeline } from "./deployment-build-pipeline.js";
 
 const input = {
@@ -18,7 +18,7 @@ const input = {
 function dependencies(
   overrides: {
     transition?: (value: Record<string, unknown>) => Promise<DeploymentTransitionResult>;
-    build?: () => Promise<BuildKitBuildResult>;
+    build?: (input: BuildKitBuildInput) => Promise<BuildKitBuildResult>;
     supersedeIfStale?: () => Promise<DeploymentTransitionResult>;
   } = {},
 ) {
@@ -50,6 +50,7 @@ function dependencies(
       }),
       supersedeIfStale: vi.fn(overrides.supersedeIfStale ?? (async () => success())),
     },
+    logChunks: { append: vi.fn(async () => null) },
   };
 }
 
@@ -65,6 +66,15 @@ function success(): DeploymentTransitionResult {
 describe("runDeploymentBuildPipeline", () => {
   it("runs guarded stages, persists the returned digest, and cleans the context", async () => {
     const deps = dependencies();
+    const output: BuildKitBuildInput[] = [];
+    deps.buildkit.buildAndPush.mockImplementation(async (buildInput) => {
+      output.push(buildInput);
+      await buildInput.onOutput?.({ stream: "stdout", text: "durable build output\n" });
+      return {
+        imageReference: input.imageReference,
+        digest: `sha256:${"b".repeat(64)}`,
+      };
+    });
     const result = await runDeploymentBuildPipeline(input, deps);
 
     expect(result).toEqual({ kind: "DEPLOYING", digest: `sha256:${"b".repeat(64)}` });
@@ -74,6 +84,14 @@ describe("runDeploymentBuildPipeline", () => {
       "DEPLOYING",
     ]);
     expect(deps.transitions[2]).toMatchObject({ imageDigest: `sha256:${"b".repeat(64)}` });
+    expect(deps.logChunks.append).toHaveBeenCalledWith({
+      deploymentId: input.deploymentId,
+      desiredSha: input.desiredSha,
+      stage: "PUSHING",
+      stream: "stdout",
+      text: "durable build output\n",
+    });
+    expect(output).toHaveLength(1);
     expect(deps.materialize).toHaveBeenCalledOnce();
   });
 
@@ -90,6 +108,25 @@ describe("runDeploymentBuildPipeline", () => {
 
     expect(result).toEqual({ kind: "FAILED", stage: "PUSHING", code: "BUILDKIT_UNAVAILABLE" });
     expect(deps.transitions.at(-1)).toMatchObject({ to: "FAILED", expectedStatus: "PUSHING" });
+  });
+
+  it("cannot report build success after a durable log append failure", async () => {
+    const deps = dependencies();
+    deps.logChunks.append.mockRejectedValue(new Error("database password leaked"));
+    deps.buildkit.buildAndPush.mockImplementation(async (buildInput) => {
+      await buildInput.onOutput?.({ stream: "stderr", text: "output" });
+      return {
+        imageReference: input.imageReference,
+        digest: `sha256:${"b".repeat(64)}`,
+      };
+    });
+    const result = await runDeploymentBuildPipeline(input, deps);
+    expect(result).toEqual({ kind: "FAILED", stage: "PUSHING", code: "BUILDKIT_FAILED" });
+    expect(deps.transitions.at(-1)).toMatchObject({
+      to: "FAILED",
+      failure: { code: "BUILDKIT_FAILED", message: "Deployment build pipeline failed" },
+    });
+    expect(JSON.stringify(deps.transitions)).not.toContain("database password leaked");
   });
 
   it("does not publish a digest when the desired SHA becomes stale", async () => {

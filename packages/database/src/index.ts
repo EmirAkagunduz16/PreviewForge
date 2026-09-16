@@ -63,6 +63,17 @@ export {
   supersedeStaleDeployment,
   transitionDeployment,
 } from "./deployment-repository.js";
+export type { LogChunkInput, LogChunkPage, LogChunkPageOptions } from "./log-chunk-repository.js";
+export {
+  LOG_CHUNK_MAX_UTF8_BYTES,
+  LOG_DEPLOYMENT_MAX_UTF8_BYTES,
+  LOG_MAX_SEQUENCE,
+  LOG_RETENTION_AGE_MS,
+  LogChunkDeploymentRejectedError,
+  LogChunkRepository,
+  LogChunkSequenceExhaustedError,
+  LogChunkValidationError,
+} from "./log-chunk-repository.js";
 export type {
   MarkPublishedResult,
   OutboxClaimOptions,
