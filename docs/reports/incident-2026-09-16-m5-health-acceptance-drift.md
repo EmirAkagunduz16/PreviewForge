@@ -1,7 +1,7 @@
 ---
 id: RPT-2026-09-16-m5-health-acceptance-drift
 type: incident
-status: open
+status: verified
 date: 2026-09-16
 vault_sync: synced
 ---
@@ -18,29 +18,32 @@ environment. Both runs passed 2/3 tests and failed the health fixture at
 cleanup remained users/projects/deployments/environment rows 0/0/0/0 with no managed
 namespaces.
 
-## Current assessment
+## Resolution
 
-Root cause is unresolved. Do not weaken the expected `HEALTHCHECK_FAILED` outcome or
-represent the full M5 acceptance target as green. This repeatable drift does not erase
-historical M5 completion evidence and does not invalidate the independently passing
-focused M6 ENV-VARS runtime proof. It is a non-blocking operational follow-up for M5
-history but a prerequisite to integrated M6 acceptance.
+The race was in `waitForHealthCheck`: a definitive failed HTTP response returned after
+the rollout deadline was classified as `HEALTHCHECK_TIMEOUT`, which erased the stronger
+nonretryable health failure. The rollout now preserves an observed failed response at the
+deadline and only classifies a late successful response as `HEALTHCHECK_TIMEOUT`.
 
-## Required investigation and acceptance
+The strict `HEALTHCHECK_FAILED` oracle was retained. The focused rollout suite passed
+16/16, then two consecutive real `pnpm test:acceptance:m5` runs passed all 3/3 tests
+(81.41s and 80.60s). Cleanup after both runs reported zero fixture rows and zero managed
+preview namespaces.
 
-Inspect the health fixture and rollout path around
+## Historical investigation and acceptance
+
+The investigation inspected the health fixture and rollout path around
 `apps/worker/src/m5.acceptance.test.ts:209` and `apps/worker/src/kubernetes/rollout.ts`.
 Capture each health attempt's HTTP status and timing, plus Gateway route/backend
 readiness throughout the bounded observation window. Determine why the intended
 continuous failed-health response is classified as a timeout; repair the fixture or
 observation path without relaxing the strict durable failure oracle. Then run
 `pnpm test:acceptance:m5` twice against the real disposable DB/kind/Gateway setup.
-Acceptance requires all 3/3 tests to pass both times, including durable nonretryable
+The acceptance requirement was all 3/3 tests in both runs, including durable nonretryable
 `HEALTHCHECK_FAILED`, and cleanup to leave zero fixture rows and no managed namespaces.
 
 ## Prevention
 
-Keep health classification assertions strict and make fixture prewarm prove that the
-correct routed success endpoint is serving before starting the bounded health-failure
-window. Retain per-attempt status/timing diagnostics so transient route readiness cannot
-be confused with a stable application failure.
+Keep health classification assertions strict: a definitive observed response must not be
+replaced by a timeout merely because it crossed the observation deadline. Retain the
+regression test at `apps/worker/src/kubernetes/rollout.test.ts`.

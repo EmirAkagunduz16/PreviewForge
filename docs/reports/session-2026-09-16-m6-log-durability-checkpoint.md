@@ -68,8 +68,9 @@ retested before the hosted run. The exact implementation changed-file set is rec
 
 Proceed sequentially to M6-SSE-API; this durability slice has no remaining work.
 
-`OPS-M5-HEALTH-ACCEPTANCE-DRIFT` remains open and must be resolved before integrated M6
-acceptance. It does not invalidate this isolated log-durability acceptance.
+The M5 health acceptance drift was open at this checkpoint and was later resolved and
+verified before integrated M6 acceptance. It does not invalidate this isolated
+log-durability acceptance.
 
 ## Links
 

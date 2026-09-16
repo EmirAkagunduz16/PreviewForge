@@ -12,8 +12,8 @@ vault_sync: synced
 
 `M6-SSE-API` is complete on 2026-09-16. Its implementation commit is
 `ef365b0113545a61cd87ebc66705590e54a5373b`. This closes only the authenticated live
-output API slice: M6 remains active, with M6-DASHBOARD next. The separate
-`OPS-M5-HEALTH-ACCEPTANCE-DRIFT` remains a prerequisite for integrated M6 acceptance.
+output API slice: M6 remains active, with M6-DASHBOARD and integrated acceptance next.
+The separate M5 health acceptance drift was later verified resolved.
 
 The API serves `GET /api/deployments/:deploymentId/events` as native HTTP SSE. Each
 connection authenticates and owner-scopes the deployment before SSE headers are sent,
@@ -44,8 +44,9 @@ deployment-local sequence numbers.
 
 ## Next action
 
-Proceed sequentially to M6-DASHBOARD. Resolve and rerun the full M5 health acceptance
-drift before integrated M6 acceptance; it does not invalidate this isolated evidence.
+Proceed sequentially to M6-DASHBOARD and integrated acceptance. The full M5 health
+acceptance drift was later resolved and verified; it does not invalidate this isolated
+evidence.
 
 ## Related links
 

@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
-import { describe, expect, it } from "vitest";
-import { createErrorEnvelope } from "./api-exception.filter.js";
+import { describe, expect, it, vi } from "vitest";
+import { ApiExceptionFilter, createErrorEnvelope } from "./api-exception.filter.js";
+import type { StructuredLogger } from "./structured-logger.js";
 
 describe("createErrorEnvelope", () => {
   it("returns a stable public envelope for client errors", () => {
@@ -23,5 +24,32 @@ describe("createErrorEnvelope", () => {
         statusCode: 500,
       },
     });
+  });
+});
+
+describe("ApiExceptionFilter", () => {
+  it("does not write a second envelope after a streaming response is committed", () => {
+    const response = {
+      headersSent: true,
+      destroyed: false,
+      writableEnded: false,
+      status: vi.fn(),
+      json: vi.fn(),
+    };
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ requestId: "req-stream" }),
+        getResponse: () => response,
+      }),
+    };
+    const logger = { event: vi.fn() };
+
+    new ApiExceptionFilter(logger as unknown as StructuredLogger).catch(
+      new Error("stream closed"),
+      host as never,
+    );
+
+    expect(response.status).not.toHaveBeenCalled();
+    expect(response.json).not.toHaveBeenCalled();
   });
 });

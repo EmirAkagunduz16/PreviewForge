@@ -44,13 +44,16 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Implement rollout and configurable HTTP health checking.
 - Acceptance: complete. On 2026-09-16, real kind acceptance passed 3/3 against disposable PostgreSQL, kind, registry, and Envoy Gateway; see the [session evidence](../reports/session-2026-09-15-m5-kind-acceptance.md).
 
-## M6 — Dashboard and live logs (active) — week 6
+## M6 — Dashboard and live logs (complete) — week 6
 
 - Implement project list, active previews, deployment detail, pipeline stages, history, and SSE logs with resume cursor.
 - Add write-only environment-variable management.
-- Acceptance: refresh/reconnect preserves status and historical logs; secret read APIs remain redacted.
+- Acceptance: complete. Dedicated PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser
+  acceptance passed with owner isolation, durable logs/cursor replay, write-only encrypted
+  environment values, redacted failure, and zero fixture/namespace residue; see the
+  [integrated evidence report](../reports/session-2026-09-16-m6-acceptance-progress.md).
 
-## M7 — GitHub feedback and cleanup (week 7)
+## M7 — GitHub feedback and cleanup (active) — week 7
 
 - Create/update GitHub check runs with preview URL and failure summary.
 - Delete on PR close, implement TTL policy, and add an orphan reconciler.

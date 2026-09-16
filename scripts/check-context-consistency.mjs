@@ -52,7 +52,7 @@ for (const planFile of planFiles) {
 }
 
 const activeEntries = [
-  ...activeBacklog.matchAll(/^- id:\s+([^\n]+)([\s\S]*?)(?=\n- id:|\n```)/gmu),
+  ...activeBacklog.matchAll(/^- id:\s+([^\n]+)([\s\S]*?)(?=\n- id:|\n```|(?![\s\S]))/gmu),
 ].map(([, id, body]) => ({
   id: id.trim(),
   body,

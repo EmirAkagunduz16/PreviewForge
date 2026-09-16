@@ -32,6 +32,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
       });
     }
 
+    // Streaming responses (notably SSE) may fail after their headers have
+    // already been flushed or after the client has disconnected. Do not try
+    // to replace a committed/destroyed response with a JSON error envelope.
+    if (response.headersSent || response.destroyed || response.writableEnded) return;
+
     response.status(statusCode).json(envelope);
   }
 }

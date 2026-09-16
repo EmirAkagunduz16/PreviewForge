@@ -51,18 +51,20 @@ API responses, and logs. Removing all values prunes the Secret and `envFrom` ref
 
 ## Separate M5 acceptance drift
 
-The full `pnpm test:acceptance:m5` target was run twice; each run passed 2/3 tests and
-failed the legacy health fixture at `apps/worker/src/m5.acceptance.test.ts:209`:
+At this slice checkpoint the full `pnpm test:acceptance:m5` target was run twice; each run
+passed 2/3 tests and failed the legacy health fixture at
+`apps/worker/src/m5.acceptance.test.ts:209`:
 expected durable nonretryable `HEALTHCHECK_FAILED`, observed retryable
 `HEALTHCHECK_TIMEOUT`. Do not loosen this expectation or claim the full M5 target is
 currently green. The focused M6 ENV-VARS kind test passed and cleanup remained zero.
 The exact next investigation and required rerun are tracked in the
 [M5 health acceptance drift incident](incident-2026-09-16-m5-health-acceptance-drift.md).
-This does not invalidate historical M5 evidence or this focused M6 slice; resolve and
-reverify before integrated M6 acceptance.
+This did not invalidate historical M5 evidence or this focused M6 slice; the drift was
+later resolved and reverified before integrated M6 acceptance.
 
 ## Next action
 
 Proceed sequentially to M6-LOG-DURABILITY under the locked 16 KiB/chunk, 2 MiB per
 deployment, 30-day `createdAt`, oldest-first eviction and explicit SSE gap contract.
-Before integrated M6 acceptance, resolve the M5 drift and rerun the full real M5 target.
+Before integrated M6 acceptance, the M5 drift prerequisite was resolved and the full real
+M5 target passed twice.

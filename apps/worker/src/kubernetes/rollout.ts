@@ -191,7 +191,12 @@ async function waitForHealthCheck(
       // HTTP response so the durable retryability flag remains correct.
       health = { ok: false, code: "HEALTHCHECK_UNAVAILABLE" };
     }
-    if (now() > deadline) return { ok: false, code: "HEALTHCHECK_TIMEOUT" };
+    if (now() > deadline) {
+      // A definitive failed response remains stronger than the deadline when
+      // the response arrives at the boundary; only a successful response is
+      // forbidden from publishing READY after the rollout window.
+      return health.ok ? { ok: false, code: "HEALTHCHECK_TIMEOUT" } : health;
+    }
     if (health.ok) return health;
     lastFailure = health;
 

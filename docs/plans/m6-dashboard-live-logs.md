@@ -1,9 +1,10 @@
 # M6 execution plan — dashboard and live logs
 
-Status: active
+Status: complete
 Owner: PreviewForge delivery
-Roadmap: [M6 — Dashboard and live logs](../delivery/roadmap.md#M6--dashboard-and-live-logs-active--week-6)
+Roadmap: [M6 — Dashboard and live logs](../delivery/roadmap.md#M6--dashboard-and-live-logs-complete--week-6)
 Sources: [MVP scope](../product/mvp-scope.md), [system design](../architecture/system-design.md), [deployment state machine](../architecture/deployment-state-machine.md), [ADR 0005 — SSE](../architecture/decisions/0005-sse-for-live-output.md), [control-plane skill](../../.agents/skills/previewforge-control-plane/SKILL.md)
+Completion evidence: [M6 integrated acceptance report](../reports/session-2026-09-16-m6-acceptance-progress.md)
 
 ## Outcome
 
@@ -86,9 +87,9 @@ the limits. Canonical evidence: [M6 product-contract decision](../reports/decisi
 
 Secret values remain excluded from build context, image layers, event payloads, API
 responses, and logs. `M6-PRODUCT-CONTRACT`, `M6-ENV-VARS`, and `M6-LOG-DURABILITY` are
-closed. Execute remaining slices sequentially under the ownership ledger. Full M5
-acceptance has a repeatable health classification drift that must be resolved before
-integrated M6 acceptance (see the [incident report](../reports/incident-2026-09-16-m5-health-acceptance-drift.md)).
+closed. Execute remaining slices sequentially under the ownership ledger. Full M5 acceptance had a repeatable health classification drift; it was repaired and
+verified with two consecutive 3/3 real runs before integrated M6 acceptance (see the
+[verified incident report](../reports/incident-2026-09-16-m5-health-acceptance-drift.md)).
 
 ## Baseline and sequential ownership ledger
 
@@ -203,8 +204,8 @@ to root. Do not create a new service or modify protected root-owned report files
   high-water means next sequence to allocate, and `createdAt` is not approximated by
   `emittedAt`.
 - Implementation/evidence commit: `d6d3f9ff59d02bc5646a3d795dabbf72b95736c5`.
-- Next action: M6-SSE-API and M6-DASHBOARD are complete; resolve and rerun
-  OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
+- Next action: M6-SSE-API and M6-DASHBOARD are complete; proceed to integrated M6
+  acceptance. The M5 health acceptance prerequisite is verified green.
 
 ### M6-SSE-API
 
@@ -220,15 +221,14 @@ to root. Do not create a new service or modify protected root-owned report files
   unauthenticated 401, foreign/absent 404, and disconnect cleanup. Fixture users,
   projects, deployments, chunks, and outbox rows were 0/0/0/0/0; the database was
   dropped. `pnpm check` passed; see [the SSE report](../reports/session-2026-09-16-m6-sse-api.md).
-- Next action: M6-DASHBOARD is complete; keep PostgreSQL authoritative and resolve/rerun
-  OPS-M5-HEALTH-ACCEPTANCE-DRIFT before integrated M6 acceptance.
+- Next action: M6-DASHBOARD is complete; keep PostgreSQL authoritative and proceed to the
+  integrated M6 acceptance.
 
 ### M6-DASHBOARD
 
 - Status: complete on 2026-09-16. Real browser/API/PostgreSQL acceptance passed against a
   disposable OAuth stub and fixture set; see the [completion evidence report](../reports/session-2026-09-16-m6-dashboard.md).
-  M6 remains active because integrated M6 acceptance and the open M5 health drift are not
-  closed.
+  Integrated M6 acceptance is now closed by the dedicated dependency/browser workflow.
 - Implementation/evidence commit: `ce731a8`.
 - Dependency: M6-QUERY-API, M6-ENV-VARS, and M6-SSE-API.
 - Objective and owned paths: build the authenticated project/preview/history/detail UI,
@@ -237,21 +237,22 @@ to root. Do not create a new service or modify protected root-owned report files
 - Acceptance and verification: authenticated browser/network checks prove owner-scoped
   views, ordered stages/history, refresh/reconnect, secret redaction, key mutations,
   errors/loading, and sign-out; run web tests and browser acceptance.
-- Next action: proceed to M6-ACCEPTANCE only after `OPS-M5-HEALTH-ACCEPTANCE-DRIFT` is
-  resolved; preserve the same-origin routing and session-cookie evidence.
+- Next action: none; preserve the same-origin routing and session-cookie evidence.
 
 ### M6-ACCEPTANCE
 
 - Dependency: all preceding implementation slices, including the product-contract gate.
 - Objective and owned paths: add integrated API/browser acceptance in
   `apps/api/src/m6.integration.test.ts` and an existing supported web harness only.
-- Acceptance and verification: run `pnpm check` and the integrated disposable
-  PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser workflow; prove ownership,
-  encrypted write-only runtime injection, durable logs/cursor reconnect, durable failure,
-  and cleanup. Record unavailable dependencies as not-run, not mocked pass.
-- Next action: after narrow gates pass, resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT and rerun
-  `pnpm test:acceptance:m5` green before capturing full M6 runtime evidence and residue
-  checks. The drift does not invalidate historical M5 evidence or focused M6 ENV-VARS proof.
+- Status: complete on 2026-09-16. The dedicated disposable workflow passed and is recorded
+  in the [canonical integrated acceptance report](../reports/session-2026-09-16-m6-acceptance-progress.md).
+- Acceptance and verification: the owner/foreign API acceptance passed 5 files/6 tests;
+  rootless BuildKit/registry durable-log acceptance passed 1/1; real kind/Envoy Gateway
+  acceptance passed 1 file/3 tests; and the browser stack proved owner views, history,
+  refresh/reconnect logs, write-only environment keys, redacted failure, and sign-out.
+  PostgreSQL fixtures and managed `pf-*` namespaces were zero after cleanup, then the
+  dedicated database was dropped.
+- Next action: define the M7 execution contract before starting M7; no M6 work remains.
 
 ## Sequential slices and acceptance matrix
 
@@ -325,13 +326,13 @@ to root. Do not create a new service or modify protected root-owned report files
 
 ```yaml
 id: M6-PLAN
-status: active
+status: complete
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
-verification_command: pnpm docs:check; git diff --check
-next_action: Resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT, then run M6-ACCEPTANCE; M6 remains active.
-blocker: Product contract, ENV-VARS, LOG-DURABILITY, SSE, and DASHBOARD are closed. Full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
+verification_command: pnpm check; pnpm docs:check; git diff --check; dedicated PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser acceptance
+next_action: Define the M7 execution contract before implementation.
+blocker: none
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. DASHBOARD evidence is docs/reports/session-2026-09-16-m6-dashboard.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md.
-evidence_commit: not-run
+evidence: Product policy is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS evidence is docs/reports/session-2026-09-16-m6-env-vars.md. LOG-DURABILITY evidence is docs/reports/session-2026-09-16-m6-log-durability-checkpoint.md. SSE evidence is docs/reports/session-2026-09-16-m6-sse-api.md. DASHBOARD evidence is docs/reports/session-2026-09-16-m6-dashboard.md. M5 health drift resolution and two green real acceptance runs are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md. Integrated PostgreSQL/BuildKit/kind/Gateway/browser evidence and residue checks are docs/reports/session-2026-09-16-m6-acceptance-progress.md.
+evidence_commit: pending-root-commit
 ```

@@ -1,7 +1,8 @@
 # M6-DASHBOARD completion evidence — 2026-09-16
 
 Status: verified slice completion. M6 remains active; integrated M6 acceptance is still
-gated by the open M5 health-classification drift and the full worker/runtime workflow.
+pending the full worker/runtime workflow. The M5 health-classification drift was later
+resolved and verified.
 
 ## Scope delivered
 
@@ -57,7 +58,7 @@ untracked directory remains protected and unrelated.
 
 ## Next action and limits
 
-M6-ACCEPTANCE remains queued until `OPS-M5-HEALTH-ACCEPTANCE-DRIFT` is resolved and the
-complete owner/non-owner, worker, BuildKit, Kubernetes, Gateway, log replay, failure, and
-residue workflow is rerun. This report does not claim integrated M6 completion.
-
+M6-ACCEPTANCE was queued at this slice checkpoint. The M5 prerequisite is now verified;
+the complete owner/non-owner, worker, BuildKit, Kubernetes, Gateway, log replay, failure,
+browser, and residue workflow remains the integrated acceptance target. This report does
+not claim integrated M6 completion.

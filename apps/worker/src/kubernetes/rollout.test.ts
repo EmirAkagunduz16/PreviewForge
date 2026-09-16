@@ -157,6 +157,27 @@ describe("runPreviewRollout", () => {
     });
   });
 
+  it("preserves an observed failed response at the rollout deadline", async () => {
+    let now = 0;
+    const { deps, transitions } = dependencies(availableDeployment(), {
+      ok: false,
+      code: "HEALTHCHECK_FAILED",
+    });
+    deps.now = () => now;
+    deps.healthCheck = vi.fn(async (): Promise<HealthCheckResult> => {
+      now = 101;
+      return { ok: false, code: "HEALTHCHECK_FAILED" };
+    });
+
+    const result = await runPreviewRollout({ ...input, rolloutTimeoutMs: 100 }, deps);
+
+    expect(result.kind).toBe("FAILED");
+    expect(transitions[0]).toMatchObject({
+      to: "FAILED",
+      failure: { stage: "HEALTHCHECK", code: "HEALTHCHECK_FAILED", retryable: false },
+    });
+  });
+
   it("records a transient health-check outage as retryable", async () => {
     const { deps, transitions } = dependencies(availableDeployment(), {
       ok: false,
