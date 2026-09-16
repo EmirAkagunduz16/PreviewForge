@@ -85,9 +85,11 @@ the limits. Canonical evidence: [M6 product-contract decision](../reports/decisi
    replayed.
 
 Secret values remain excluded from build context, image layers, event payloads, API
-responses, and logs. `M6-PRODUCT-CONTRACT` is closed; `M6-ENV-VARS` and
-`M6-LOG-DURABILITY` are unblocked but still unimplemented. Execute all slices
-sequentially under the ownership ledger.
+responses, and logs. `M6-PRODUCT-CONTRACT` and `M6-ENV-VARS` are closed;
+`M6-LOG-DURABILITY` is unblocked and not implemented. Execute remaining slices
+sequentially under the ownership ledger. Full M5 acceptance has a repeatable health
+classification drift that must be resolved before integrated M6 acceptance (see the
+[incident report](../reports/incident-2026-09-16-m5-health-acceptance-drift.md)).
 
 ## Baseline and sequential ownership ledger
 
@@ -145,7 +147,8 @@ to root. Do not create a new service or modify protected root-owned report files
   API unit tests 53/53; full `pnpm check` passed. Canonical evidence:
   [M6 Query API session report](../reports/session-2026-09-16-m6-query-api.md).
 - Implementation commit: `12a89d73a0a7dca554316245f2e17429517c6163`.
-- Next action: the approved gate is closed; continue sequentially with M6-ENV-VARS.
+- Next action: the approved gate and dependent M6-ENV-VARS slice are closed; continue
+  sequentially with M6-LOG-DURABILITY.
 
 ### M6-PRODUCT-CONTRACT
 
@@ -162,17 +165,24 @@ to root. Do not create a new service or modify protected root-owned report files
 
 ### M6-ENV-VARS
 
-- Dependency: M6-PRODUCT-CONTRACT closed; implement after Query API in the sequential ledger.
-- Objective and owned paths: add encrypted owner-scoped persistence, API write-only
-  key management, shared cipher support, and worker-to-preview injection using
-  project-scoped values shared by every PR preview. Scope is
-  Prisma/migration, database repository, `packages/security/`, API environment module,
-  worker config/runtime/tests, and the M5 Kubernetes environment seam.
-- Acceptance and verification: disposable PostgreSQL/API/worker tests plus real kind
-  prove ciphertext binding, redacted reads, and Pod-only plaintext injection; run the
-  database, API, and worker tests before runtime acceptance.
-- Next action: implement the approved project-wide scope without exposing values to
-  BuildKit, events, responses, or logs.
+- Status: complete; M6 remains active and this does not claim LOG-DURABILITY or
+  integrated M6 acceptance.
+- Dependency: M6-PRODUCT-CONTRACT closed; completed after M6-QUERY-API in the sequential ledger.
+- Objective and owned paths: project-shared encrypted persistence, names-only
+  owner-scoped API, shared authenticated cipher, and worker-to-preview Secret/env
+  injection. Bounds: 32 Kubernetes environment identifiers, 16,384 UTF-8 bytes per
+  value, and 512 KiB aggregate plaintext per project Secret.
+- Acceptance and verification: focused real PostgreSQL repository 1/1; real
+  HTTP/PostgreSQL API 1/1; focused real kind injection test 1 passed (2 skipped,
+  16.30s), proving same-project preview sharing, foreign-project isolation, ciphertext
+  loading, Pod-only plaintext, no build/event exposure, and removal pruning Secret/envFrom.
+  Full `pnpm check` passed: Biome 164 files; docs 169 links/53 files; Turbo 18/18;
+  security 4/4, API unit 55/55, worker unit 166/166, DB integration 81/81, API
+  integration 3/3, worker integration 5/5. Cleanup: users/projects/deployments/env rows
+  0/0/0/0 and no managed namespaces. See [canonical evidence](../reports/session-2026-09-16-m6-env-vars.md).
+- Implementation commit: `9d539481640e4a8734bfcee4a125718ab13661d6`.
+- Next action: proceed sequentially to M6-LOG-DURABILITY. Never include plaintext in
+  build context/layers, event payloads, API responses, or logs.
 
 ### M6-LOG-DURABILITY
 
@@ -185,8 +195,8 @@ to root. Do not create a new service or modify protected root-owned report files
   deployment, eviction by oldest sequence as needed for the total cap, expiry where
   `createdAt < now - 30 days`, explicit `event: gap` after evicted cursor history, and
   safe plain-text output; run database integration and worker tests.
-- Next action: implement the approved finite bounds and age policy with transactional
-  sequence allocation; do not approximate `createdAt` with `emittedAt`.
+- Next action: implement this next sequential slice after M6-ENV-VARS; do not
+  approximate `createdAt` with `emittedAt`.
 
 ### M6-SSE-API
 
@@ -220,8 +230,9 @@ to root. Do not create a new service or modify protected root-owned report files
   PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser workflow; prove ownership,
   encrypted write-only runtime injection, durable logs/cursor reconnect, durable failure,
   and cleanup. Record unavailable dependencies as not-run, not mocked pass.
-- Next action: after narrow gates pass, capture the complete runtime evidence and residue
-  checks for M6 closure.
+- Next action: after narrow gates pass, resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT and rerun
+  `pnpm test:acceptance:m5` green before capturing full M6 runtime evidence and residue
+  checks. The drift does not invalidate historical M5 evidence or focused M6 ENV-VARS proof.
 
 ## Sequential slices and acceptance matrix
 
@@ -300,9 +311,9 @@ status: active
 acceptance_ref: docs/plans/m6-dashboard-live-logs.md#Exit checklist
 owned_paths: [docs/plans/m6-dashboard-live-logs.md, docs/backlog/active.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: Implement M6-ENV-VARS, then M6-LOG-DURABILITY sequentially under the approved contract; M6 remains active.
-blocker: none for the product-contract gate; the implementation slices remain unfinished backlog work.
+next_action: Implement M6-LOG-DURABILITY next, then SSE, dashboard, and integrated acceptance; resolve OPS-M5-HEALTH-ACCEPTANCE-DRIFT before M6 integrated acceptance. M6 remains active.
+blocker: Product contract and ENV-VARS are closed. LOG-DURABILITY, SSE, dashboard, and acceptance remain unfinished; full M5 health acceptance must be repaired and rerun before M6 integrated acceptance.
 acceptance: Owner-scoped dashboard/history, write-only encrypted environment management, bounded durable logs, and resumable SSE pass real acceptance.
-evidence: User approved project-shared environment scope and 16 KiB/2 MiB/30-day createdAt retention with explicit SSE gap event on 2026-09-16; recorded in docs/reports/decision-2026-09-16-m6-product-contract.md. No implementation/runtime evidence is claimed for ENV-VARS or LOG-DURABILITY.
+evidence: User approved project-shared environment scope and 16 KiB/2 MiB/30-day createdAt retention with explicit SSE gap event on 2026-09-16; decision is docs/reports/decision-2026-09-16-m6-product-contract.md. ENV-VARS real DB/API/kind and full quality-gate evidence is docs/reports/session-2026-09-16-m6-env-vars.md. Full M5 health acceptance drift and exact investigation are docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md; LOG-DURABILITY remains not implemented.
 evidence_commit: not-run
 ```

@@ -2,33 +2,28 @@
 
 Only unfinished work belongs here. Update this file before starting work and before handing off.
 
-No unfinished M5 work remains. M6 is the current milestone. M5 completion evidence is in the [M5 execution plan](../plans/m5-kubernetes-preview-reconciliation.md) and [real kind acceptance report](../reports/session-2026-09-15-m5-kind-acceptance.md).
+M5 implementation/evidence remains historically complete, but a repeatable full-acceptance
+health-classification drift is tracked by `OPS-M5-HEALTH-ACCEPTANCE-DRIFT`; resolve and
+reverify it before integrated M6 acceptance. This does not invalidate the historical M5
+evidence or focused M6 ENV-VARS proof. See the [M5 execution plan](../plans/m5-kubernetes-preview-reconciliation.md),
+[real kind acceptance report](../reports/session-2026-09-15-m5-kind-acceptance.md), and
+[health acceptance incident](../reports/incident-2026-09-16-m5-health-acceptance-drift.md).
 
 ## M6 — dashboard and live logs
 
 Implement remaining slices sequentially with one Luna medium agent; do not run parallel
-lanes. M6-QUERY-API and M6-PRODUCT-CONTRACT are complete and archived with evidence.
+lanes. M6-QUERY-API, M6-PRODUCT-CONTRACT, and M6-ENV-VARS are complete and archived
+with evidence.
 The [M6 execution plan](../plans/m6-dashboard-live-logs.md) contains the approved locked
 contracts and sequential ownership/acceptance matrix. M6 as a whole remains active.
-
-- id: M6-ENV-VARS
-  status: queued
-  acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-ENV-VARS
-  owned_paths: [packages/database/prisma/schema.prisma, packages/database/prisma/migrations/, packages/database/src/project-environment-repository.ts, packages/security/, apps/api/src/environment-variables/, apps/api/src/app.module.ts, apps/api/test/, apps/worker/src/config/, apps/worker/src/runtime/, apps/worker/test/, apps/worker/src/kubernetes/]
-  verification_command: pnpm --filter @previewforge/database test:integration; pnpm --filter @previewforge/api test; pnpm --filter @previewforge/worker test; real disposable-kind environment injection acceptance
-  next_action: Implement project-scoped encrypted storage shared across all PR previews, name-only reads, write-only mutations, and worker-to-preview runtime injection without passing values to BuildKit or events.
-  blocker: None; M6-PRODUCT-CONTRACT is approved and archived. Proceed as the next sequential slice.
-  acceptance: PostgreSQL/API/worker tests plus real kind prove authenticated project/key-bound ciphertext, owner isolation, redacted API responses, and Pod-only plaintext injection.
-  evidence: not-run; implementation has not started.
-  evidence_commit: not-run
 
 - id: M6-LOG-DURABILITY
   status: queued
   acceptance_ref: docs/plans/m6-dashboard-live-logs.md#M6-LOG-DURABILITY
   owned_paths: [packages/database/prisma/schema.prisma, packages/database/prisma/migrations/, packages/database/src/log-chunk-repository.ts, packages/database/src/index.ts, packages/database/test/, apps/worker/src/build/, apps/worker/src/config/, apps/worker/test/]
   verification_command: pnpm --filter @previewforge/database test:integration; pnpm --filter @previewforge/worker test; disposable PostgreSQL and real BuildKit streaming fixture
-  next_action: After M6-ENV-VARS is accepted, add LogChunk.createdAt by migration and implement UTF-8 bounded durable chunks with 16 KiB chunk, 2 MiB/deployment total, 30-day createdAt retention, oldest-first eviction, and explicit SSE gap boundary.
-  blocker: None for product policy; proceed after the preceding M6-ENV-VARS slice because execution remains sequential.
+  next_action: Implement LogChunk.createdAt by migration and UTF-8 bounded durable chunks with 16 KiB chunk, 2 MiB/deployment total, 30-day createdAt retention, oldest-first eviction, and explicit SSE gap boundary; M6-ENV-VARS is complete.
+  blocker: None for product policy. Before M6-ACCEPTANCE, resolve and reverify OPS-M5-HEALTH-ACCEPTANCE-DRIFT against the full real M5 target.
   acceptance: Restart/read tests prove unique ordered chunks of at most 16,384 UTF-8 text bytes, at most 2,097,152 retained text bytes per deployment, age expiry from createdAt older than 30 days, oldest-first eviction, explicit gap and valid next-sequence high-water mark after all rows are evicted, safe plain text, and no environment-value leakage.
   evidence: not-run; implementation has not started.
   evidence_commit: not-run
@@ -61,7 +56,18 @@ contracts and sequential ownership/acceptance matrix. M6 as a whole remains acti
   owned_paths: [apps/api/src/m6.integration.test.ts, apps/web/test/]
   verification_command: pnpm check; real disposable PostgreSQL/Kafka/BuildKit/registry/kind/Gateway/browser acceptance
   next_action: After all prior slices pass their narrow gates, run the integrated owner/non-owner, secret write-only/runtime, log replay/reconnect, and durable failure workflow; capture actual runtime evidence and residue checks.
-  blocker: Depends on M6-QUERY-API, M6-ENV-VARS, M6-LOG-DURABILITY, M6-SSE-API, and M6-DASHBOARD.
+  blocker: Depends on M6-QUERY-API, M6-ENV-VARS, M6-LOG-DURABILITY, M6-SSE-API, and M6-DASHBOARD; OPS-M5-HEALTH-ACCEPTANCE-DRIFT must be resolved and the full real M5 acceptance rerun green first.
   acceptance: Real dependency and browser evidence covers every M6 exit criterion; cleanup leaves zero fixture DB rows and no managed namespaces; unavailable dependencies are reported not-run rather than mocked as a pass.
   evidence: not-run; implementation has not started.
+  evidence_commit: not-run
+
+- id: OPS-M5-HEALTH-ACCEPTANCE-DRIFT
+  status: open
+  acceptance_ref: docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md#required-investigation-and-acceptance
+  owned_paths: [apps/worker/src/m5.acceptance.test.ts, apps/worker/src/kubernetes/rollout.ts, docs/reports/incident-2026-09-16-m5-health-acceptance-drift.md, docs/backlog/active.md]
+  verification_command: pnpm test:acceptance:m5
+  next_action: Trace the health fixture's per-attempt HTTP status/timing and Gateway backend readiness across the bounded observation window in the full target; repair the fixture/runtime observation path without relaxing the HEALTHCHECK_FAILED expectation, then rerun the complete real M5 acceptance.
+  blocker: None for investigation. Must be resolved and the full target reverified before integrated M6 acceptance; focused M6 ENV-VARS evidence and historical M5 completion remain valid.
+  acceptance: Two consecutive real disposable-environment runs classify continuous failed-health responses as durable nonretryable HEALTHCHECK_FAILED, pass all three M5 tests, and leave zero fixture rows and managed namespaces.
+  evidence: Repeated full runs each passed 2/3; health case expected HEALTHCHECK_FAILED but got HEALTHCHECK_TIMEOUT at apps/worker/src/m5.acceptance.test.ts:209. Focused ENV-VARS kind case passed; post-run database residue was 0/0/0/0 and no managed namespaces.
   evidence_commit: not-run
