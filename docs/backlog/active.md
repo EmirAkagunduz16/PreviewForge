@@ -56,5 +56,5 @@ explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
   next_action: keep the canonical report and local gate open until the missing BuildKit prerequisite is restored; M9 remains blocked and untouched
   acceptance: final docs, local runtime evidence, security checks, dashboard/trace observations, restore result, teardown, and deferred M9 blocker agree without unverified cloud claims
   evidence: Canonical report: docs/reports/session-2026-09-17-m8-acceptance.md. It records the completed local implementation slices and available-boundary acceptance, the exact BuildKit gap, teardown evidence, and the explicit no-AWS boundary.
-  evidence_commit: 7bd9a7d
+  evidence_commit: 87530bf
 ~~~
