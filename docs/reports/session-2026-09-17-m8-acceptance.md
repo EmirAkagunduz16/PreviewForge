@@ -102,6 +102,13 @@ base PostgreSQL/Kafka/registry services are pre-existing local infrastructure
 and were not broadly destroyed. Historical non-M8 rows in the base database
 were not treated as disposable fixture residue.
 
+The final read-only sweep found four stale M8-named consumer groups from
+earlier interrupted runner/debug attempts. Their exact names were
+`m8-local-1789671832741_1733088`, `m8-local-1789672630830_1788598`,
+`m8-debug-group-2`, and `m8-local-1789672818648_1801588`; only those groups
+were deleted. The subsequent broker group listing was empty. No product
+consumer group was changed.
+
 No credential value was added to fixtures, telemetry labels, traces, API
 responses, logs, or build context. No privileged, unconfined, Docker-socket,
 global AppArmor, or global sysctl shortcut was introduced.
