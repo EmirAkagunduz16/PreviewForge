@@ -104,6 +104,10 @@ describe("M8 worker Kafka, feedback, and cleanup fault matrix", () => {
       if (producer) await producer.disconnect();
       if (groups.length > 0) await admin.deleteGroups(groups).catch(() => undefined);
       if (admin) await admin.disconnect();
+      if (groups.length > 0) {
+        await prisma.consumerReceipt.deleteMany({ where: { consumerName: { in: groups } } });
+        await prisma.kafkaDelivery.deleteMany({ where: { consumerName: { in: groups } } });
+      }
 
       for (const fixture of fixtures) {
         const aggregateIds = [fixture.deploymentId, fixture.environmentId];
@@ -139,6 +143,14 @@ describe("M8 worker Kafka, feedback, and cleanup fault matrix", () => {
           where: { aggregateId: { in: [...fixtureEnvironmentIds, ...fixtureDeploymentIds] } },
         }),
       ).toBe(0);
+      if (groups.length > 0) {
+        expect(
+          await prisma.consumerReceipt.count({ where: { consumerName: { in: groups } } }),
+        ).toBe(0);
+        expect(await prisma.kafkaDelivery.count({ where: { consumerName: { in: groups } } })).toBe(
+          0,
+        );
+      }
     } catch (error) {
       cleanupError = error;
     } finally {
