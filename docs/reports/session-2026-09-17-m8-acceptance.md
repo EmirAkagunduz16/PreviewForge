@@ -3,7 +3,7 @@ id: RPT-2026-09-17-m8-acceptance
 type: session
 status: verified
 date: 2026-09-17
-vault_sync: pending
+vault_sync: synced
 ---
 
 # M8 local hardening acceptance
