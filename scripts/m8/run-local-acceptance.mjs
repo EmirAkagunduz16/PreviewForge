@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -104,6 +104,38 @@ async function assertRuntimeIdentity() {
     throw new Error(`M8 acceptance requires a disposable kind context, got ${kubeContext}`);
   await run("Kubernetes namespace identity", "kubectl", ["get", "namespace"]);
   return { dockerContext, kubeContext };
+}
+
+async function inspectRootlessBuildKit() {
+  const socketPath =
+    process.env.M8_BUILDKIT_SOCKET ?? "/var/tmp/previewforge-buildkit/buildkitd.sock";
+  const binaries = {};
+  for (const binary of ["buildkitd", "buildctl"]) {
+    try {
+      const result = await execFileAsync(binary, ["--version"], {
+        cwd: repositoryRoot,
+        env: process.env,
+        maxBuffer: 1_024 * 1_024,
+        encoding: "utf8",
+      });
+      binaries[binary] = tail(result.stdout || result.stderr);
+    } catch {
+      binaries[binary] = null;
+    }
+  }
+  let socketAvailable = true;
+  try {
+    await access(socketPath);
+  } catch {
+    socketAvailable = false;
+  }
+  const available = Object.values(binaries).every(Boolean) && socketAvailable;
+  commands.push({
+    label: "rootless BuildKit prerequisite (informational)",
+    command: `buildkitd --version + buildctl --version + socket ${socketPath}`,
+    status: available ? "passed" : "open",
+  });
+  return { available, binaries, socketPath, socketAvailable };
 }
 
 function startService(label, command, args, environment) {
@@ -407,6 +439,7 @@ async function main() {
   ]);
   observabilityProfileStarted = true;
   const identity = await assertRuntimeIdentity();
+  const buildKit = await inspectRootlessBuildKit();
   await run("build API and worker runtime", "pnpm", [
     "--filter",
     "@previewforge/worker...",
@@ -480,6 +513,7 @@ async function main() {
         milestone: "M8",
         scope: "local-only",
         runtime: identity,
+        buildKit,
         observability,
         commands: commands.map(({ label, command, status }) => ({ label, command, status })),
         evidenceDirectory,
