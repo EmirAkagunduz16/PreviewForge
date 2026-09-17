@@ -142,3 +142,11 @@ Docker context overrides, and non-kind Kubernetes contexts. It also binds
 temporary API/worker listeners to `0.0.0.0` only so the local Dockerized
 Prometheus can scrape them through `host.docker.internal`; normal local starts
 remain loopback-bound.
+
+## Session closure handoff
+
+The next local action is to provide or restore a local rootless BuildKit
+runtime, then rerun `node scripts/m8/run-local-acceptance.mjs` and archive the
+remaining `needs-review` M8 items only after that boundary passes. M9 remains
+blocked by the explicit no-unapproved-AWS-spend decision; no AWS preflight or
+mutation is part of the next action.
