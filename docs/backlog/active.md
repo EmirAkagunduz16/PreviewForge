@@ -6,17 +6,17 @@ explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
 
 ~~~yaml
 - id: M8-E2E-FAULTS
-  status: queued
+  status: needs-review
   title: Prove the local lifecycle with failure injection
   owner: PreviewForge delivery
   depends_on: [M8-FIXTURES]
   acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-E2E-FAULTS
   owned_paths: [apps/api/src/m8.integration.test.ts, apps/worker/src/m8.acceptance.test.ts, apps/worker/src/m8-faults/, apps/api/src/test-support/m8/]
-  verification_command: not-run until M8-E2E-FAULTS implementation
-  next_action: implement the real local open/synchronize/failure/retry/ready/close workflow and deterministic crash-window injections
+  verification_command: pnpm --filter @previewforge/api exec vitest run src/m8.integration.test.ts && pnpm --filter @previewforge/worker exec vitest run src/m8.acceptance.test.ts --no-file-parallelism
+  next_action: root review of the direct API/worker evidence, then run the complete local M8 gate with the existing real BuildKit/kind/Envoy acceptance identities before archiving
   acceptance: durable state, external side effects, redaction, stale-SHA fencing, idempotency, and cleanup remain correct after injected faults and restart
-  evidence: not-run
-  evidence_commit: not-run
+  evidence: API 1 file/2 tests passed against local PostgreSQL and a real Nest HTTP server; worker 1 file/6 tests passed against local PostgreSQL 18.1, Kafka 4.3.1, and a real HTTP Check Run fixture. Covered raw-body HMAC, duplicate/reordered/stale webhook delivery, before-outbox rollback, outbox publish-before-mark crash, worker offset redelivery, stale-SHA supersession, durable retry, lost Check Run create recovery, redaction, and interrupted cleanup. Removing the desired-SHA guard in a rebuilt database package made the targeted stale test fail with RETRY_SCHEDULED; restoring source/dist made it pass again. BuildKit/kind/Envoy READY/Gateway evidence is intentionally not claimed here and remains in the local gate.
+  evidence_commit: 5630eaf
 
 - id: M8-OBS
   status: queued
