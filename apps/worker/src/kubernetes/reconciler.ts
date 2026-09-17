@@ -22,14 +22,31 @@ export type KubernetesResourceIdentity = {
   resourceVersion?: string;
 };
 
+export type KubernetesNamespaceListOptions = {
+  labelSelector?: string;
+  limit?: number;
+  continueToken?: string;
+};
+
+export type KubernetesNamespaceList = {
+  items: KubernetesResource[];
+  continueToken?: string;
+};
+
 export type KubernetesResourceClient = {
   get(
     identity: KubernetesResourceIdentity,
     options?: { signal?: AbortSignal },
   ): Promise<KubernetesResource | null>;
+  listNamespaces(
+    input?: KubernetesNamespaceListOptions,
+    options?: { signal?: AbortSignal },
+  ): Promise<KubernetesNamespaceList>;
   apply(resource: KubernetesResource, options?: { signal?: AbortSignal }): Promise<void>;
   delete?(identity: KubernetesResourceIdentity, options?: { signal?: AbortSignal }): Promise<void>;
 };
+
+export type KubernetesReconcilerClient = Pick<KubernetesResourceClient, "get" | "apply" | "delete">;
 
 export type PreviewReconcileInput = PreviewResourceInput & {
   isDesired: () => Promise<boolean>;
@@ -55,7 +72,7 @@ export class PreviewOwnershipError extends Error {
 }
 
 export class KubernetesReconciler {
-  constructor(private readonly client: KubernetesResourceClient) {}
+  constructor(private readonly client: KubernetesReconcilerClient) {}
 
   async reconcile(input: PreviewReconcileInput): Promise<PreviewResourceSet> {
     const rendered = renderPreviewResources(input);

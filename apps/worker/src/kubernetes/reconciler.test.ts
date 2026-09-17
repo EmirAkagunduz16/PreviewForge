@@ -68,6 +68,30 @@ describe("preview Kubernetes resources", () => {
     ).toMatchObject({ name: "previewforge", namespace: "default" });
   });
 
+  it("uses the configured preview base domain for the Gateway hostname", () => {
+    const rendered = renderPreviewResources({
+      ...input,
+      previewBaseDomain: "preview.example.test",
+    });
+    expect(rendered.hostname).toBe(
+      "preview-22222222-2222-4222-8222-222222222222.preview.example.test",
+    );
+    expect(resource(rendered.resources, "HTTPRoute").spec).toMatchObject({
+      hostnames: [rendered.hostname],
+    });
+  });
+
+  it("renders the authoritative expiry timestamp on every managed resource", () => {
+    const expiresAt = new Date("2026-09-17T10:01:00.000Z");
+    const rendered = renderPreviewResources({ ...input, expiresAt });
+    expect(resource(rendered.resources, "Namespace").metadata.annotations).toMatchObject({
+      "previewforge.dev/expires-at": expiresAt.toISOString(),
+    });
+    expect(resource(rendered.resources, "Deployment").metadata.annotations).toMatchObject({
+      "previewforge.dev/expires-at": expiresAt.toISOString(),
+    });
+  });
+
   it("rejects non-Kubernetes env identifiers and values beyond the bounded secret contract", () => {
     expect(() => renderPreviewResources({ ...input, environment: { "bad-name": "x" } })).toThrow(
       "invalid secret key",

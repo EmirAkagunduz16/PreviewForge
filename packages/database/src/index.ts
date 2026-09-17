@@ -39,6 +39,19 @@ export {
   LeaseFenceError,
 } from "./deployment-claim-repository.js";
 export type {
+  DeploymentFeedbackContext,
+  DeploymentFeedbackLock,
+  FeedbackDeliveryClaim,
+  FeedbackDeliveryFailureInput,
+  FeedbackDeliveryIdentity,
+  FeedbackDeliveryOutcome,
+} from "./deployment-feedback-repository.js";
+export {
+  DeploymentFeedbackDeliveryConflictError,
+  DeploymentFeedbackIdentityConflictError,
+  DeploymentFeedbackRepository,
+} from "./deployment-feedback-repository.js";
+export type {
   DeploymentIntentResult,
   DeploymentRequestedPayload,
 } from "./deployment-intent.js";
@@ -63,6 +76,18 @@ export {
   supersedeStaleDeployment,
   transitionDeployment,
 } from "./deployment-repository.js";
+export type {
+  DeletePreviewNamespace,
+  EnvironmentDeletionRepositoryOptions,
+  EnvironmentDeletionResult,
+  EnvironmentDeletionStatus,
+  ExpiredEnvironmentSweepResult,
+  PreviewEnvironmentCleanupState,
+} from "./environment-deletion-repository.js";
+export {
+  EnvironmentDeletionRepository,
+  EnvironmentDeletionValidationError,
+} from "./environment-deletion-repository.js";
 export type { LogChunkInput, LogChunkPage, LogChunkPageOptions } from "./log-chunk-repository.js";
 export {
   LOG_CHUNK_MAX_UTF8_BYTES,

@@ -58,6 +58,26 @@ describe("loadConfig", () => {
     expect(config.publicBaseUrl).toBe("http://localhost:4000");
     expect(config.sessionTtlSeconds).toBe(3600);
     expect(config.oauthStateTtlSeconds).toBe(600);
+    expect(config.previewTtlSeconds).toBe(86_400);
+  });
+
+  it("accepts a bounded preview TTL and rejects values above 31 days", () => {
+    const base = {
+      NODE_ENV: "test" as const,
+      DATABASE_URL: "postgresql://localhost/db",
+      GITHUB_APP_ID: "12345",
+      GITHUB_CLIENT_ID: "client-id",
+      GITHUB_CLIENT_SECRET: "client-secret",
+      GITHUB_APP_PRIVATE_KEY: "private-key",
+      GITHUB_WEBHOOK_SECRET: "webhook-secret",
+      GITHUB_APP_SLUG: "previewforge",
+      PUBLIC_BASE_URL: "http://localhost:4000",
+      ENCRYPTION_KEY: "00".repeat(32),
+    };
+    expect(loadConfig({ ...base, PREVIEW_TTL_SECONDS: "60" }).previewTtlSeconds).toBe(60);
+    expect(() =>
+      loadConfig({ ...base, PREVIEW_TTL_SECONDS: String(31 * 24 * 60 * 60 + 1) }),
+    ).toThrow("Invalid API configuration");
   });
 
   it("rejects a partial M2 configuration without revealing its values", () => {

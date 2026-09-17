@@ -15,6 +15,8 @@ export type KafkaClientBundle = {
   kafka: Kafka;
   producer: Producer;
   consumer: Consumer;
+  feedbackConsumer: Consumer;
+  cleanupConsumer: Consumer;
   admin: Admin;
 };
 
@@ -35,9 +37,12 @@ export function producerOptions(): NonNullable<Parameters<Kafka["producer"]>[0]>
   };
 }
 
-export function consumerOptions(config: WorkerConfig): Parameters<Kafka["consumer"]>[0] {
+export function consumerOptions(
+  config: WorkerConfig,
+  groupId = config.kafkaGroupId,
+): Parameters<Kafka["consumer"]>[0] {
   return {
-    groupId: config.kafkaGroupId,
+    groupId,
     allowAutoTopicCreation: false,
     retry: { retries: 8 },
   };
@@ -49,6 +54,12 @@ export function createKafkaClient(config: WorkerConfig): KafkaClientBundle {
     kafka,
     producer: kafka.producer(producerOptions()),
     consumer: kafka.consumer(consumerOptions(config)),
+    feedbackConsumer: kafka.consumer(
+      consumerOptions(config, `${config.kafkaGroupId}:github-checks`),
+    ),
+    cleanupConsumer: kafka.consumer(
+      consumerOptions(config, `${config.kafkaGroupId}:environment-cleanup`),
+    ),
     admin: kafka.admin(),
   };
 }

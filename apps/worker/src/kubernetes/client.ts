@@ -8,7 +8,11 @@ import {
   type RequestContext,
   type ResponseContext,
 } from "@kubernetes/client-node";
-import type { KubernetesResourceClient, KubernetesResourceIdentity } from "./reconciler.js";
+import type {
+  KubernetesNamespaceListOptions,
+  KubernetesResourceClient,
+  KubernetesResourceIdentity,
+} from "./reconciler.js";
 import type { KubernetesResource } from "./resource-renderer.js";
 
 const FIELD_MANAGER = "previewforge-reconciler";
@@ -60,6 +64,35 @@ export function createKubernetesResourceClient(): KubernetesResourceClient {
         if (isNotFound(error)) return null;
         throw error;
       }
+    },
+    async listNamespaces(
+      options?: KubernetesNamespaceListOptions,
+      mutationOptions?: MutationOptions,
+    ) {
+      return runKubernetesReadWithDeadline(
+        DEFAULT_KUBERNETES_READ_TIMEOUT_MS,
+        (signal) =>
+          createRequestScopedApi(api, signal)
+            .list<KubernetesResource>(
+              "v1",
+              "Namespace",
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              options?.labelSelector,
+              options?.limit,
+              options?.continueToken,
+            )
+            .then((list) => ({
+              items: list.items,
+              ...(list.metadata?._continue === undefined
+                ? {}
+                : { continueToken: list.metadata._continue }),
+            })),
+        mutationOptions?.signal,
+      );
     },
     async apply(resource: KubernetesResource, options?: MutationOptions): Promise<void> {
       await runMutationWithDeadline("apply", options?.signal, (signal) => {

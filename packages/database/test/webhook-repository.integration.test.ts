@@ -63,6 +63,38 @@ describe("WebhookRepository (PostgreSQL)", () => {
     expect(deploymentOutbox?.aggregateId).toBe(deploymentPayload.deploymentId);
   });
 
+  it("assigns and refreshes the bounded expiry in the accepted webhook transaction", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    let receivedAt = new Date("2026-09-17T10:00:00.000Z");
+    const repository = new WebhookRepository(prisma, {
+      clock: () => receivedAt,
+      previewTtlSeconds: 60,
+    });
+
+    await repository.process(
+      input(event(fixture, "opened", "2026-09-17T09:59:00.000Z"), delivery(fixture, "ttl-open")),
+    );
+    const first = await prisma.previewEnvironment.findFirst({
+      where: { projectId: fixture.projectId },
+      select: { id: true, expiresAt: true },
+    });
+    expect(first?.expiresAt).toEqual(new Date("2026-09-17T10:01:00.000Z"));
+
+    receivedAt = new Date("2026-09-17T10:05:00.000Z");
+    await repository.process(
+      input(
+        event(fixture, "synchronize", "2026-09-17T10:04:00.000Z"),
+        delivery(fixture, "ttl-refresh"),
+      ),
+    );
+    const refreshed = await prisma.previewEnvironment.findUnique({
+      where: { id: first?.id },
+      select: { expiresAt: true },
+    });
+    expect(refreshed?.expiresAt).toEqual(new Date("2026-09-17T10:06:00.000Z"));
+  });
+
   it("deduplicates twelve concurrent deliveries with one identity", async () => {
     const fixture = await createFixture(prisma);
     fixtures.push(fixture);
@@ -144,10 +176,64 @@ describe("WebhookRepository (PostgreSQL)", () => {
     });
     const deletionPayload = environmentDeletionRequestedSchema.parse(deletionOutbox?.payload);
     expect(deletionPayload.environmentId).toBe(environment.id);
+    expect(deletionPayload.reason).toBe("pull_request_closed");
+    expect(
+      await prisma.environmentDeletionRequest.findUnique({
+        where: { environmentId: environment.id },
+        select: { reason: true },
+      }),
+    ).toEqual({ reason: "pull_request_closed" });
     expect(deletionOutbox?.aggregateId).toBe(deletionPayload.environmentId);
     expect(
       await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
     ).toBe(1);
+  });
+
+  it("reopens a closed environment with the same SHA and cancels the close request", async () => {
+    const fixture = await createFixture(prisma);
+    fixtures.push(fixture);
+    const repository = new WebhookRepository(prisma);
+    await repository.process(
+      input(event(fixture, "opened", "2026-09-13T14:00:00.000Z"), delivery(fixture, "reopen-open")),
+    );
+    const closed = await repository.process(
+      input(
+        event(fixture, "closed", "2026-09-13T14:10:00.000Z"),
+        delivery(fixture, "reopen-close"),
+      ),
+    );
+    expect(closed.deletionRequestId).toBeDefined();
+    const environment = await prisma.previewEnvironment.findFirst({
+      where: { projectId: fixture.projectId },
+      select: { id: true },
+    });
+    if (!environment || !closed.deletionRequestId) throw new Error("reopen fixture is incomplete");
+    await prisma.environmentDeletionRequest.update({
+      where: { id: closed.deletionRequestId },
+      data: { status: "PROCESSING" },
+    });
+
+    const reopened = await repository.process(
+      input(
+        event(fixture, "reopened", "2026-09-13T14:20:00.000Z"),
+        delivery(fixture, "reopen-reopened"),
+      ),
+    );
+
+    expect(reopened.deploymentId).toBeDefined();
+    const pullRequest = await prisma.pullRequest.findUnique({
+      where: { projectId_number: { projectId: fixture.projectId, number: fixture.number } },
+      include: { environment: true },
+    });
+    expect(pullRequest?.state).toBe("OPEN");
+    expect(
+      await prisma.environmentDeletionRequest.findUnique({
+        where: { environmentId: environment.id },
+      }),
+    ).toMatchObject({ status: "CANCELLED" });
+    expect(
+      await prisma.deployment.count({ where: { environment: { projectId: fixture.projectId } } }),
+    ).toBe(2);
   });
 
   it("tracks a repository rename by immutable numeric ID without creating a second project", async () => {

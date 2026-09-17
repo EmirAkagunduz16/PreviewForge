@@ -241,6 +241,7 @@ model EnvironmentDeletionRequest {
   environmentId    String             @unique @map("environment_id") @db.Uuid
   requestKey       String             @unique @map("request_key")
   status           String             @default("REQUESTED")
+  reason           String             @default("pull_request_closed")
   sourceUpdatedAt  DateTime?          @map("source_updated_at")
   sourceDeliveryId String?            @map("source_delivery_id")
   requestedAt      DateTime           @default(now()) @map("requested_at")

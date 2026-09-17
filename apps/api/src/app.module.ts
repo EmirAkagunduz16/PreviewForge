@@ -11,7 +11,7 @@ import {
 } from "@previewforge/database";
 import { AuthController } from "./auth/auth.controller.js";
 import { AuthService } from "./auth/auth.service.js";
-import type { ApiConfig } from "./config.js";
+import { type ApiConfig, DEFAULT_PREVIEW_TTL_SECONDS } from "./config.js";
 import {
   DASHBOARD_AUTH,
   DASHBOARD_REPOSITORY,
@@ -79,7 +79,9 @@ export class AppModule {
     const dashboardRepository = new DashboardRepository(prisma);
     const logChunkRepository = new LogChunkRepository(prisma);
     const environmentVariablesRepository = new ProjectEnvironmentRepository(prisma);
-    const webhookRepository = new WebhookRepository(prisma);
+    const webhookRepository = new WebhookRepository(prisma, {
+      previewTtlSeconds: runtime.previewTtlSeconds,
+    });
 
     return {
       module: AppModule,
@@ -177,7 +179,7 @@ type M2Runtime = Required<
     | "sessionTtlSeconds"
     | "oauthStateTtlSeconds"
   >
->;
+> & { previewTtlSeconds: number };
 
 function m2Runtime(config: ApiConfig): M2Runtime | undefined {
   const values = [
@@ -192,5 +194,8 @@ function m2Runtime(config: ApiConfig): M2Runtime | undefined {
   if (values.some((value) => value === undefined)) {
     throw new Error("Incomplete M2 runtime configuration");
   }
-  return config as ApiConfig & M2Runtime;
+  return {
+    ...config,
+    previewTtlSeconds: config.previewTtlSeconds ?? DEFAULT_PREVIEW_TTL_SECONDS,
+  } as ApiConfig & M2Runtime;
 }

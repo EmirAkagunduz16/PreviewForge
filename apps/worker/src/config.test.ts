@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_KAFKA_TOPICS, loadWorkerConfig } from "./config.js";
+import {
+  DEFAULT_KAFKA_TOPICS,
+  DEFAULT_ORPHAN_SWEEP_INTERVAL_MS,
+  DEFAULT_TTL_SWEEP_INTERVAL_MS,
+  loadWorkerConfig,
+} from "./config.js";
 
 const validEnvironment = {
   NODE_ENV: "test",
@@ -25,6 +30,8 @@ describe("loadWorkerConfig", () => {
       kafkaClientId: "previewforge-worker-test",
       kafkaGroupId: "previewforge-worker-test-group",
       kafkaTopics: DEFAULT_KAFKA_TOPICS,
+      ttlSweepIntervalMs: DEFAULT_TTL_SWEEP_INTERVAL_MS,
+      orphanSweepIntervalMs: DEFAULT_ORPHAN_SWEEP_INTERVAL_MS,
     });
   });
 
@@ -61,6 +68,16 @@ describe("loadWorkerConfig", () => {
     expect(
       loadWorkerConfig({ ...validEnvironment, KAFKA_BROKERS: "[::1]:59092" }).kafkaBrokers,
     ).toEqual(["[::1]:59092"]);
+  });
+
+  it("accepts a bounded TTL sweep interval and rejects unsafe values", () => {
+    expect(
+      loadWorkerConfig({ ...validEnvironment, PREVIEWFORGE_TTL_SWEEP_INTERVAL_MS: "5000" })
+        .ttlSweepIntervalMs,
+    ).toBe(5000);
+    expect(() =>
+      loadWorkerConfig({ ...validEnvironment, PREVIEWFORGE_TTL_SWEEP_INTERVAL_MS: "999" }),
+    ).toThrow("PREVIEWFORGE_TTL_SWEEP_INTERVAL_MS is invalid");
   });
 
   it("accepts the shared encryption-key encodings and rejects invalid keys without echoing values", () => {

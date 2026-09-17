@@ -2,6 +2,7 @@ import type { DeploymentRequested } from "@previewforge/contracts";
 import type { DeploymentTransitionResult } from "@previewforge/database";
 import {
   KubernetesReconciler,
+  type KubernetesReconcilerClient,
   type KubernetesResourceClient,
   PreviewSupersededError,
 } from "./reconciler.js";
@@ -22,6 +23,7 @@ export type PreviewDeploymentReconcileInput = {
   imageDigest: string;
   containerPort: number;
   healthPath: string;
+  previewBaseDomain?: string;
   healthCheckUrl?: string;
   rolloutTimeoutMs?: number;
   pollIntervalMs?: number;
@@ -36,7 +38,9 @@ export type PreviewDeploymentReconcileResult =
   | { kind: "FAILED"; transition: DeploymentTransitionResult }
   | { kind: "SUPERSEDED"; transition?: DeploymentTransitionResult };
 
-export function createKubernetesReconciler(client: KubernetesResourceClient): KubernetesReconciler {
+export function createKubernetesReconciler(
+  client: KubernetesReconcilerClient,
+): KubernetesReconciler {
   return new KubernetesReconciler(client);
 }
 
@@ -58,6 +62,9 @@ export async function reconcilePreviewDeployment(
       imageDigest: input.imageDigest,
       containerPort: input.containerPort,
       healthPath: input.healthPath,
+      ...(input.previewBaseDomain === undefined
+        ? {}
+        : { previewBaseDomain: input.previewBaseDomain }),
       ...(input.expiresAt === undefined ? {} : { expiresAt: input.expiresAt }),
       ...(input.environment === undefined ? {} : { environment: input.environment }),
       isDesired,

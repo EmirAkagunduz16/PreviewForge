@@ -53,13 +53,13 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
   environment values, redacted failure, and zero fixture/namespace residue; see the
   [integrated evidence report](../reports/session-2026-09-16-m6-acceptance-progress.md).
 
-## M7 — GitHub feedback and cleanup (active) — week 7
+## M7 — GitHub feedback and cleanup (complete) — week 7
 
 - Create/update GitHub check runs with preview URL and failure summary.
 - Delete on PR close, implement TTL policy, and add an orphan reconciler.
-- Acceptance: deletion is idempotent and reconciliation removes a labeled orphan with missing database state according to policy.
+- Acceptance: complete. Real PostgreSQL/Kafka/kind/Envoy acceptance verified repeated close, TTL expiry, DB-missing orphan cleanup, stale-SHA supersession, wrong-owner safety, and zero disposable residue; see the [M7 integrated acceptance report](../reports/session-2026-09-17-m7-acceptance.md).
 
-## M8 — Hardening and cloud demo (week 8)
+## M8 — Hardening and cloud demo (active) — week 8
 
 - Add end-to-end tests, failure injection, metrics/traces, operational dashboards, backup/restore notes, and demo fixtures.
 - Deploy to one AWS EKS/ECR environment only after local acceptance criteria pass.

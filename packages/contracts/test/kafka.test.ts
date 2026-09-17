@@ -136,12 +136,14 @@ describe("Kafka event contracts", () => {
       installationId: "42",
       reason: "pull_request_closed" as const,
     };
+    const ttlDeletion = { ...deletion, reason: "ttl_expired" as const };
 
     expect(parseKafkaEvent(requested).eventType).toBe("deployment.requested.v1");
     expect(parseKafkaEvent(stageChanged).eventType).toBe("deployment.stage-changed.v1");
     expect(parseKafkaEvent(ready).eventType).toBe("deployment.ready.v1");
     expect(parseKafkaEvent(failed).eventType).toBe("deployment.failed.v1");
     expect(parseKafkaEvent(deletion).eventType).toBe("environment.deletion-requested.v1");
+    expect(parseKafkaEvent(ttlDeletion)).toMatchObject({ reason: "ttl_expired" });
   });
 
   it("normalizes a Kafka record and strips unknown headers and payload fields", () => {

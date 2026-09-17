@@ -3,6 +3,8 @@ import { z } from "zod";
 
 export const DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com";
 export const DEFAULT_GITHUB_OAUTH_BASE_URL = "https://github.com";
+export const DEFAULT_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
+export const MAX_PREVIEW_TTL_SECONDS = 31 * 24 * 60 * 60;
 
 const portSchema = z
   .string()
@@ -25,6 +27,7 @@ const positiveSecondsSchema = z
 
 const sessionTtlSchema = positiveSecondsSchema.pipe(z.number().max(31 * 24 * 60 * 60));
 const oauthStateTtlSchema = positiveSecondsSchema.pipe(z.number().max(15 * 60));
+const previewTtlSchema = positiveSecondsSchema.pipe(z.number().max(MAX_PREVIEW_TTL_SECONDS));
 
 const databaseUrlSchema = z
   .string()
@@ -76,6 +79,7 @@ export type ApiConfig = {
   publicBaseUrl?: string;
   sessionTtlSeconds?: number;
   oauthStateTtlSeconds?: number;
+  previewTtlSeconds?: number;
 };
 
 export type GitHubConfig = {
@@ -119,6 +123,7 @@ type M2Environment = Pick<
   | "publicBaseUrl"
   | "sessionTtlSeconds"
   | "oauthStateTtlSeconds"
+  | "previewTtlSeconds"
 >;
 
 function parseM2Configuration(
@@ -139,6 +144,7 @@ function parseM2Configuration(
     "ENCRYPTION_KEY",
     "SESSION_TTL_SECONDS",
     "OAUTH_STATE_TTL_SECONDS",
+    "PREVIEW_TTL_SECONDS",
   ] as const;
   const hasM2Configuration = names.some((name) => environment[name] !== undefined);
 
@@ -169,6 +175,7 @@ function parseM2Configuration(
       ENCRYPTION_KEY: z.string().min(1),
       SESSION_TTL_SECONDS: sessionTtlSchema.default(2592000),
       OAUTH_STATE_TTL_SECONDS: oauthStateTtlSchema.default(600),
+      PREVIEW_TTL_SECONDS: previewTtlSchema.default(DEFAULT_PREVIEW_TTL_SECONDS),
     })
     .safeParse(environment);
 
@@ -217,5 +224,6 @@ function parseM2Configuration(
     publicBaseUrl: parsed.data.PUBLIC_BASE_URL.replace(/\/$/, ""),
     sessionTtlSeconds: parsed.data.SESSION_TTL_SECONDS,
     oauthStateTtlSeconds: parsed.data.OAUTH_STATE_TTL_SECONDS,
+    previewTtlSeconds: parsed.data.PREVIEW_TTL_SECONDS,
   };
 }

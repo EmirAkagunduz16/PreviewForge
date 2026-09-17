@@ -84,4 +84,12 @@ export class ProjectEnvironmentRepository {
       orderBy: { key: "asc" },
     });
   }
+
+  async findPreviewExpiryByEnvironmentId(environmentId: string): Promise<Date | null> {
+    const environment = await this.prisma.previewEnvironment.findUnique({
+      where: { id: environmentId },
+      select: { expiresAt: true },
+    });
+    return environment?.expiresAt ?? null;
+  }
 }

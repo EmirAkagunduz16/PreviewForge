@@ -25,3 +25,6 @@
 | RPT-2026-09-16-m6-sse-api | session | verified | [M6 SSE API evidence](session-2026-09-16-m6-sse-api.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20SSE%20API.md) |
 | RPT-2026-09-16-m6-dashboard | session | verified | [M6 Dashboard evidence](session-2026-09-16-m6-dashboard.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20Dashboard.md) |
 | RPT-2026-09-16-m6-acceptance | session | verified | [M6 integrated acceptance](session-2026-09-16-m6-acceptance-progress.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-16%20M6%20Acceptance.md) |
+| RPT-2026-09-17-m7-pr-close | session | verified | [M7 PR-CLOSE acceptance](session-2026-09-17-m7-pr-close.md) | not yet synced |
+| RPT-2026-09-17-m7-ttl-orphan | session | verified | [M7 TTL and orphan cleanup](session-2026-09-17-m7-ttl-orphan.md) | not yet synced |
+| RPT-2026-09-17-m7-acceptance | session | verified | [M7 integrated acceptance](session-2026-09-17-m7-acceptance.md) | pending |

@@ -1,3 +1,5 @@
+import { previewHostname } from "../preview-url.js";
+
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const UUID = /^[0-9a-f-]{36}$/iu;
 const SECRET_KEY = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/u;
@@ -12,6 +14,8 @@ export const PREVIEW_GATEWAY_NAMESPACE = "default";
 export type KubernetesMetadata = {
   name: string;
   namespace?: string;
+  uid?: string;
+  resourceVersion?: string;
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
 };
@@ -32,6 +36,7 @@ export type PreviewResourceInput = {
   imageDigest: string;
   containerPort: number;
   healthPath: string;
+  previewBaseDomain?: string;
   expiresAt?: Date | null;
   environment?: Record<string, string>;
 };
@@ -60,7 +65,10 @@ export function renderPreviewResources(input: PreviewResourceInput): PreviewReso
   const annotations = {
     "previewforge.dev/expires-at": input.expiresAt?.toISOString() ?? "",
   };
-  const hostname = `preview-${input.environmentId}.previewforge.local`;
+  const hostname = previewHostname(
+    input.environmentId,
+    input.previewBaseDomain ?? "previewforge.local",
+  );
   const serviceName = "preview";
 
   const resources: KubernetesResource[] = [

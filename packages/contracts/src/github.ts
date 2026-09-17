@@ -294,7 +294,7 @@ export const environmentDeletionRequestedSchema = z
     repositoryId: githubRepositoryIdSchema.optional(),
     repositoryFullName: githubRepositoryFullNameSchema.optional(),
     installationId: githubInstallationIdSchema.optional(),
-    reason: z.literal("pull_request_closed").optional(),
+    reason: z.enum(["pull_request_closed", "ttl_expired"]).optional(),
   })
   .strip();
 export type EnvironmentDeletionRequested = z.infer<typeof environmentDeletionRequestedSchema>;

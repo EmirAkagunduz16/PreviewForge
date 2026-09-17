@@ -4,6 +4,8 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 
 const MAX_TRANSACTION_RETRIES = 4;
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
+const DEFAULT_PREVIEW_TTL_SECONDS = 24 * 60 * 60;
+const MAX_PREVIEW_TTL_SECONDS = 31 * 24 * 60 * 60;
 
 export type WebhookFaultStage = "before-outbox";
 
@@ -66,6 +68,7 @@ type FaultInjector = (stage: WebhookFaultStage) => void;
 export type WebhookRepositoryOptions = {
   faultInjector?: FaultInjector;
   clock?: () => Date;
+  previewTtlSeconds?: number;
 };
 
 export class WebhookRepository {
@@ -160,6 +163,9 @@ async function processInTransaction(
   }
 
   const receivedAt = options.clock?.() ?? input.receivedAt ?? new Date();
+  const expiresAt = new Date(
+    receivedAt.getTime() + boundedPreviewTtlSeconds(options.previewTtlSeconds) * 1_000,
+  );
   const sourceUpdatedAt = new Date(input.event.sourceTimestamp);
   const delivery = await tx.webhookDelivery.create({
     data: {
@@ -235,6 +241,7 @@ async function processInTransaction(
     existingPullRequest,
     sourceUpdatedAt,
     receivedAt,
+    expiresAt,
     options.faultInjector,
   );
 }
@@ -247,6 +254,7 @@ async function processOpen(
   existingPullRequest: PullRequestRow | null,
   sourceUpdatedAt: Date,
   receivedAt: Date,
+  expiresAt: Date,
   faultInjector?: FaultInjector,
 ): Promise<WebhookProcessResult> {
   const pullRequest = existingPullRequest
@@ -294,14 +302,21 @@ async function processOpen(
         previewKey: `pr-${projectId}-${pullRequest.number}`,
         desiredCommitSha: input.event.commitSha,
         status: "ACTIVE",
+        expiresAt,
       },
-      select: { id: true, desiredCommitSha: true },
+      select: { id: true, desiredCommitSha: true, expiresAt: true },
     });
   } else if (environment.desiredCommitSha !== input.event.commitSha) {
     environment = await tx.previewEnvironment.update({
       where: { id: environment.id },
-      data: { desiredCommitSha: input.event.commitSha, status: "ACTIVE" },
-      select: { id: true, desiredCommitSha: true },
+      data: { desiredCommitSha: input.event.commitSha, status: "ACTIVE", expiresAt },
+      select: { id: true, desiredCommitSha: true, expiresAt: true },
+    });
+  } else {
+    environment = await tx.previewEnvironment.update({
+      where: { id: environment.id },
+      data: { status: "ACTIVE", expiresAt },
+      select: { id: true, desiredCommitSha: true, expiresAt: true },
     });
   }
 
@@ -309,14 +324,18 @@ async function processOpen(
   // deletion outbox row remains an immutable fact; the worker will observe the
   // request status before deleting anything.
   await tx.environmentDeletionRequest.updateMany({
-    where: { environmentId: environment.id, status: "REQUESTED" },
-    data: { status: "CANCELLED", completedAt: receivedAt },
+    where: {
+      environmentId: environment.id,
+      status: { in: ["REQUESTED", "PROCESSING", "FAILED"] },
+    },
+    data: { status: "CANCELLED", completedAt: receivedAt, failureReason: null },
   });
 
   let deploymentId: string | undefined;
   if (environment.desiredCommitSha === input.event.commitSha) {
     const shouldDeploy =
       existingPullRequest === null ||
+      existingPullRequest.state === "CLOSED" ||
       existingPullRequest.environment?.desiredCommitSha !== input.event.commitSha;
     if (shouldDeploy) {
       deploymentId = randomUUID();
@@ -423,7 +442,7 @@ async function processClosed(
   const requestKey = `environment:${environment.id}`;
   const existingRequest = await tx.environmentDeletionRequest.findUnique({
     where: { environmentId: environment.id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, reason: true },
   });
   let deletionRequestId: string | undefined;
   if (existingRequest === null) {
@@ -434,11 +453,15 @@ async function processClosed(
         environmentId: environment.id,
         requestKey,
         status: "REQUESTED",
+        reason: "pull_request_closed",
         sourceUpdatedAt,
         sourceDeliveryId: input.deliveryId,
       },
     });
-  } else if (existingRequest.status !== "REQUESTED") {
+  } else if (
+    existingRequest.status !== "REQUESTED" ||
+    existingRequest.reason !== "pull_request_closed"
+  ) {
     // A close after a reopen is a new deletion intent. Keep the request key
     // stable and make it actionable again; a fresh outbox fact is required.
     deletionRequestId = existingRequest.id;
@@ -446,6 +469,7 @@ async function processClosed(
       where: { id: existingRequest.id },
       data: {
         status: "REQUESTED",
+        reason: "pull_request_closed",
         completedAt: null,
         sourceUpdatedAt,
         sourceDeliveryId: input.deliveryId,
@@ -455,7 +479,11 @@ async function processClosed(
     deletionRequestId = existingRequest.id;
   }
 
-  if (existingRequest === null || existingRequest.status !== "REQUESTED") {
+  if (
+    existingRequest === null ||
+    existingRequest.status !== "REQUESTED" ||
+    existingRequest.reason !== "pull_request_closed"
+  ) {
     const eventId = randomUUID();
     faultInjector?.("before-outbox");
     await tx.outboxEvent.create({
@@ -498,6 +526,7 @@ async function processClosed(
 type PullRequestRow = {
   id: string;
   number: number;
+  state: string;
   sourceUpdatedAt: Date | null;
   environment: { id: string; desiredCommitSha: string } | null;
 };
@@ -543,6 +572,14 @@ function parsePostgresBigInt(value: string): bigint {
   } catch {
     throw new WebhookPayloadValidationError();
   }
+}
+
+function boundedPreviewTtlSeconds(value: number | undefined): number {
+  const ttl = value ?? DEFAULT_PREVIEW_TTL_SECONDS;
+  if (!Number.isInteger(ttl) || ttl < 1 || ttl > MAX_PREVIEW_TTL_SECONDS) {
+    throw new Error("preview TTL is invalid");
+  }
+  return ttl;
 }
 
 async function nextAttempt(tx: TransactionClient, environmentId: string): Promise<number> {

@@ -2,6 +2,9 @@ import { kafkaTopics } from "@previewforge/contracts";
 import { decodeCredentialEncryptionKey } from "@previewforge/security";
 
 export const DEFAULT_KAFKA_TOPICS = kafkaTopics;
+export const DEFAULT_TTL_SWEEP_INTERVAL_MS = 60_000;
+export const DEFAULT_ORPHAN_SWEEP_INTERVAL_MS = 60_000;
+const MAX_TTL_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 
 type NodeEnvironment = "development" | "test" | "production";
 
@@ -12,6 +15,8 @@ export type WorkerConfig = {
   kafkaClientId: string;
   kafkaGroupId: string;
   kafkaTopics: typeof DEFAULT_KAFKA_TOPICS;
+  ttlSweepIntervalMs?: number;
+  orphanSweepIntervalMs?: number;
   encryptionKey?: Buffer;
   build?: WorkerBuildConfig;
 };
@@ -49,6 +54,8 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
   const kafkaGroupId = requiredName(environment, "KAFKA_GROUP_ID");
   const brokers = parseKafkaBrokers(kafkaBrokerValue);
   const build = parseBuildConfig(environment);
+  const ttlSweepIntervalMs = parseTtlSweepInterval(environment);
+  const orphanSweepIntervalMs = parseOrphanSweepInterval(environment);
   const encryptionKey = parseEncryptionKey(environment.ENCRYPTION_KEY);
   if (environment.PREVIEWFORGE_KUBERNETES_ENABLED === "true" && encryptionKey === undefined) {
     throw new Error(
@@ -63,9 +70,36 @@ export function loadWorkerConfig(environment: NodeJS.ProcessEnv): WorkerConfig {
     kafkaClientId,
     kafkaGroupId,
     kafkaTopics: DEFAULT_KAFKA_TOPICS,
+    ttlSweepIntervalMs,
+    orphanSweepIntervalMs,
     ...(encryptionKey === undefined ? {} : { encryptionKey }),
     ...(build === undefined ? {} : { build }),
   };
+}
+
+function parseTtlSweepInterval(environment: NodeJS.ProcessEnv): number {
+  return parseSweepInterval(
+    "PREVIEWFORGE_TTL_SWEEP_INTERVAL_MS",
+    environment.PREVIEWFORGE_TTL_SWEEP_INTERVAL_MS,
+    DEFAULT_TTL_SWEEP_INTERVAL_MS,
+  );
+}
+
+function parseOrphanSweepInterval(environment: NodeJS.ProcessEnv): number {
+  return parseSweepInterval(
+    "PREVIEWFORGE_ORPHAN_SWEEP_INTERVAL_MS",
+    environment.PREVIEWFORGE_ORPHAN_SWEEP_INTERVAL_MS,
+    DEFAULT_ORPHAN_SWEEP_INTERVAL_MS,
+  );
+}
+
+function parseSweepInterval(name: string, value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1_000 || parsed > MAX_TTL_SWEEP_INTERVAL_MS) {
+    throw new Error(`Invalid worker configuration: ${name} is invalid`);
+  }
+  return parsed;
 }
 
 function parseEncryptionKey(value: string | undefined): Buffer | undefined {
