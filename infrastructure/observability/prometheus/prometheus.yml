@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: previewforge-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: [host.docker.internal:4000]
+  - job_name: previewforge-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: [host.docker.internal:9465]

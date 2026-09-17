@@ -102,6 +102,23 @@ describe("Kafka event contracts", () => {
     expect(normalized.value).not.toContain("must-not-cross-boundary");
   });
 
+  it("propagates only a validated traceparent through outbox and Kafka headers", () => {
+    const traceparent = "00-11111111111111111111111111111111-2222222222222222-01";
+    const normalized = normalizeOutboxEvent({ ...row(requested), traceParent: traceparent });
+    expect(normalized.headers.traceparent).toBe(traceparent);
+    expect(
+      parseKafkaRecord(
+        record(requested, {
+          headers: { ...normalized.headers },
+        }),
+      ).headers.traceparent,
+    ).toBe(traceparent);
+    expectContractCode(
+      () => normalizeOutboxEvent({ ...row(requested), traceParent: "00-0" }),
+      "INVALID_OUTBOX_ROW",
+    );
+  });
+
   it("accepts all current event payload variants", () => {
     const ready = {
       ...stageChanged,

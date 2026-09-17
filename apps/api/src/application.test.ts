@@ -37,6 +37,23 @@ describe("API runtime contract", () => {
       },
     });
   });
+
+  it("exposes local metrics and an HTTP trace with bounded route data", async () => {
+    const app = await startTestApplication();
+    const origin = await app.getUrl();
+    const health = await fetch(`${origin}/health`);
+    const metrics = await fetch(`${origin}/metrics`);
+    const traces = await fetch(`${origin}/traces`);
+    const traceBody = (await traces.json()) as {
+      spans: Array<{ name: string; attributes: Record<string, unknown> }>;
+    };
+
+    expect(health.headers.get("x-trace-id")).toMatch(/^[0-9a-f]{32}$/u);
+    expect(metrics.headers.get("content-type")).toContain("text/plain");
+    expect(await metrics.text()).toContain("previewforge_http_requests_total");
+    expect(traceBody.spans.some((span) => span.name === "http.server")).toBe(true);
+    expect(JSON.stringify(traceBody)).not.toContain("/health?secret");
+  });
 });
 
 async function startTestApplication() {

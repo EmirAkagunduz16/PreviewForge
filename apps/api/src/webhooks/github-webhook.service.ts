@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { normalizePullRequestWebhookPayload } from "@previewforge/contracts";
+import { activeTraceparent } from "@previewforge/observability";
 import { verifyGitHubSignature } from "../security/github-signature.js";
 import type {
   RawWebhookRequest,
@@ -53,12 +54,14 @@ export class GithubWebhookService {
     }
 
     const payloadSha256 = createHash("sha256").update(rawBody).digest("hex");
+    const traceParent = activeTraceparent();
     try {
       return await this.repository.process({
         deliveryId,
         eventName,
         payloadSha256,
         event,
+        ...(traceParent === undefined ? {} : { traceParent }),
       });
     } catch (error) {
       const code = error instanceof Error && "code" in error ? error.code : undefined;

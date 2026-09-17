@@ -256,7 +256,7 @@ describe("M8 API webhook lifecycle and transaction faults", () => {
     const outbox = await prisma.outboxEvent.findMany({
       where: { aggregateId: { in: [...deploymentIds, environment.id] } },
       orderBy: { createdAt: "asc" },
-      select: { eventType: true, aggregateId: true, payload: true },
+      select: { eventType: true, aggregateId: true, payload: true, traceParent: true },
     });
     expect(outbox.map((event) => event.eventType)).toEqual([
       "deployment.requested.v1",
@@ -265,6 +265,7 @@ describe("M8 API webhook lifecycle and transaction faults", () => {
     ]);
     expect(JSON.stringify(outbox)).not.toContain(webhookSecret);
     expect(JSON.stringify(outbox)).not.toContain("m8-test-private-key-must-not-leak");
+    expect(outbox[0]?.traceParent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/iu);
   }, 30_000);
 
   it("authenticates the exact raw body and rolls back before-outbox faults", async () => {

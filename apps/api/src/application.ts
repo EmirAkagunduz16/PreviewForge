@@ -4,11 +4,13 @@ import express from "express";
 import { ApiExceptionFilter } from "./api-exception.filter.js";
 import { AppModule } from "./app.module.js";
 import type { ApiConfig } from "./config.js";
+import { createApiTelemetry, registerObservabilityRoutes } from "./observability/index.js";
 import { requestContextMiddleware } from "./request-context.middleware.js";
 import { StructuredLogger } from "./structured-logger.js";
 
 export async function createApplication(config: ApiConfig) {
   const logger = new StructuredLogger(config.logLevel);
+  const telemetry = createApiTelemetry();
   // Nest's default parser consumes the stream before webhook handlers can
   // authenticate it. Install the parser ourselves and retain the exact bytes
   // received on the wire for HMAC verification.
@@ -26,7 +28,8 @@ export async function createApplication(config: ApiConfig) {
   );
   app.use(express.urlencoded({ extended: true, limit: "64kb" }));
 
-  app.use(requestContextMiddleware(logger));
+  registerObservabilityRoutes(app.getHttpAdapter().getInstance(), telemetry);
+  app.use(requestContextMiddleware(logger, telemetry));
   app.useGlobalFilters(new ApiExceptionFilter(logger));
   app.enableShutdownHooks();
   app.setGlobalPrefix("api", { exclude: ["health"] });

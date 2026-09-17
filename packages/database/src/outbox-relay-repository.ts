@@ -22,6 +22,7 @@ export type OutboxRelayRecord = {
   aggregateType: string;
   aggregateId: string;
   payload: Prisma.JsonValue;
+  traceParent: string | null;
   attempts: number;
   availableAt: Date;
   publishedAt: Date | null;
@@ -92,6 +93,7 @@ type OutboxRow = {
   aggregate_type: string;
   aggregate_id: string;
   payload: Prisma.JsonValue;
+  trace_parent: string | null;
   attempts: number;
   available_at: Date;
   published_at: Date | null;
@@ -294,6 +296,7 @@ function toClaimedRecord(row: OutboxRow): OutboxRelayRecord {
     aggregateType: row.aggregate_type,
     aggregateId: row.aggregate_id,
     payload: row.payload,
+    traceParent: row.trace_parent,
     attempts: row.attempts,
     availableAt: row.available_at,
     publishedAt: row.published_at,

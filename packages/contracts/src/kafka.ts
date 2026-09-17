@@ -28,6 +28,11 @@ export type KafkaEventType = (typeof kafkaEventTypes)[number];
 const uuid = z.uuid();
 const isoDateTime = z.iso.datetime();
 const commitSha = z.string().regex(/^[0-9a-f]{40}$/i);
+export const traceParentSchema = z
+  .string()
+  .regex(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/i)
+  .refine((value) => !/^00-0{32}-[0-9a-f]{16}-[0-9a-f]{2}$/iu.test(value))
+  .refine((value) => !/^00-[0-9a-f]{32}-0{16}-[0-9a-f]{2}$/iu.test(value));
 const eventIdentitySchema = z.object({
   eventId: uuid,
   eventType: kafkaEventTypeSchema,
@@ -94,6 +99,7 @@ export type KafkaOutboxRow = {
   aggregateType: string;
   aggregateId: string;
   payload: unknown;
+  traceParent?: string | null;
 };
 
 export type KafkaRecordInput = {
@@ -111,6 +117,7 @@ export type NormalizedKafkaMessage = {
   headers: {
     "event-id": string;
     "event-type": KafkaEventType;
+    traceparent?: string;
   };
   event: KafkaEvent;
 };
@@ -198,6 +205,9 @@ export function normalizeOutboxEvent(row: unknown): NormalizedKafkaMessage {
     headers: {
       "event-id": event.eventId,
       "event-type": event.eventType,
+      ...(parsedRow.traceParent === undefined || parsedRow.traceParent === null
+        ? {}
+        : { traceparent: traceParentSchema.parse(parsedRow.traceParent) }),
     },
     event,
   };
@@ -259,12 +269,23 @@ function parseOutboxRow(value: unknown): KafkaOutboxRow {
   ) {
     throw new KafkaContractError("INVALID_OUTBOX_ROW", "Outbox row identity is invalid");
   }
+  const traceParent = value.traceParent;
+  if (
+    traceParent !== undefined &&
+    traceParent !== null &&
+    !traceParentSchema.safeParse(traceParent).success
+  ) {
+    throw new KafkaContractError("INVALID_OUTBOX_ROW", "Outbox traceparent is invalid");
+  }
   return {
     id: id.data,
     eventType: eventType.data,
     aggregateType: value.aggregateType,
     aggregateId: aggregateId.data,
     payload: value.payload,
+    ...(traceParent === undefined || traceParent === null
+      ? {}
+      : { traceParent: traceParentSchema.parse(traceParent) }),
   };
 }
 
@@ -301,7 +322,19 @@ function parseHeaders(value: unknown): NormalizedKafkaMessage["headers"] {
   if (!parsedEventId.success || !parsedEventType.success) {
     throw new KafkaContractError("INVALID_KAFKA_RECORD", "Kafka header identity is invalid");
   }
-  return { "event-id": parsedEventId.data, "event-type": parsedEventType.data };
+  const traceParent = value.traceparent;
+  if (traceParent === undefined) {
+    return { "event-id": parsedEventId.data, "event-type": parsedEventType.data };
+  }
+  const parsedTraceParent = traceParentSchema.safeParse(decodeHeader(traceParent));
+  if (!parsedTraceParent.success) {
+    throw new KafkaContractError("INVALID_KAFKA_RECORD", "Kafka traceparent header is invalid");
+  }
+  return {
+    "event-id": parsedEventId.data,
+    "event-type": parsedEventType.data,
+    traceparent: parsedTraceParent.data,
+  };
 }
 
 function decodeHeader(value: unknown): string {

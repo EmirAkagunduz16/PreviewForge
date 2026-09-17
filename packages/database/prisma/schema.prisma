@@ -262,6 +262,7 @@ model OutboxEvent {
   aggregateType String    @map("aggregate_type")
   aggregateId   String    @map("aggregate_id") @db.Uuid
   payload       Json
+  traceParent   String?   @map("trace_parent") @db.VarChar(55)
   attempts      Int       @default(0)
   availableAt   DateTime  @default(now()) @map("available_at")
   publishedAt   DateTime? @map("published_at")

@@ -17,6 +17,7 @@ export type OutboxRelayRow = {
   aggregateType: string;
   aggregateId: string;
   payload: unknown;
+  traceParent?: string | null;
   attempts: number;
   claimToken: string | null;
 };

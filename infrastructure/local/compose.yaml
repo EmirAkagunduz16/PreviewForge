@@ -51,6 +51,65 @@ services:
     volumes:
       - registry-data:/var/lib/registry
 
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "59090:9090"
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    profiles: [observability]
+    # The upstream image runs as UID 10001, while a fresh named volume is
+    # root-owned. This local-only service needs the volume bootstrap to be
+    # writable; PreviewForge workloads never inherit this container identity.
+    user: "0:0"
+    ports:
+      - "53200:3200"
+      - "14317:4317"
+      - "14320:4318"
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ../observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    profiles: [observability]
+    depends_on:
+      - tempo
+    ports:
+      - "14318:4318"
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [observability]
+    depends_on:
+      - prometheus
+      - tempo
+    ports:
+      - "53000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   postgres-data:
   registry-data:
+  prometheus-data:
+  tempo-data:
+  grafana-data:

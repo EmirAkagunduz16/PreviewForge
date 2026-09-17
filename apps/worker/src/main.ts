@@ -9,6 +9,11 @@ import {
   ProjectEnvironmentRepository,
   ProjectRepository,
 } from "@previewforge/database";
+import {
+  type PreviewForgeTelemetry,
+  parseObservabilityPort,
+  startObservabilityServer,
+} from "@previewforge/observability";
 import { CredentialCipher } from "@previewforge/security";
 import type { EachMessagePayload } from "kafkajs";
 import { resolveBuildInput } from "./build/build-input.js";
@@ -46,6 +51,7 @@ import {
 } from "./kubernetes/deployment-reconciler.js";
 import { persistKubernetesFailure } from "./kubernetes/failure-persistence.js";
 import { httpHealthCheck, resolveHealthCheckUrl } from "./kubernetes/rollout.js";
+import { createWorkerTelemetry, DEFAULT_WORKER_OBSERVABILITY_PORT } from "./observability/index.js";
 import { relayOutboxBatch } from "./outbox-relay.js";
 import { loadPreviewUrlConfig, type PreviewUrlConfig, previewHostname } from "./preview-url.js";
 import { loadProjectEnvironment } from "./runtime/project-environment.js";
@@ -57,6 +63,16 @@ const UNCOMMITTED_RETRY_DELAY_MS = 1_000;
 
 async function main(): Promise<void> {
   const config = loadWorkerConfig(process.env);
+  const telemetry = createWorkerTelemetry();
+  const telemetryServer = await startObservabilityServer(telemetry, {
+    host: process.env.PREVIEWFORGE_WORKER_OBSERVABILITY_HOST ?? "127.0.0.1",
+    port: parseObservabilityPort(
+      process.env,
+      "PREVIEWFORGE_WORKER_OBSERVABILITY_PORT",
+      DEFAULT_WORKER_OBSERVABILITY_PORT,
+    ),
+  });
+  telemetry.metrics.set("previewforge_worker_health", 0);
   const previewUrlConfig = loadPreviewUrlConfig(process.env, config.nodeEnv);
   const prisma = createPrismaClient(config.databaseUrl);
   const claims = new DeploymentClaimRepository(prisma);
@@ -68,6 +84,9 @@ async function main(): Promise<void> {
   const projectEnvironments = new ProjectEnvironmentRepository(prisma);
   const outbox = new OutboxRelayRepository(prisma);
   const kafka = createKafkaClient(config);
+  kafka.consumer.on(kafka.consumer.events.GROUP_JOIN, () => {
+    telemetry.metrics.set("previewforge_worker_health", 1);
+  });
   const kubernetes =
     process.env.PREVIEWFORGE_KUBERNETES_ENABLED === "true"
       ? createKubernetesResourceClient()
@@ -86,6 +105,7 @@ async function main(): Promise<void> {
           ? {}
           : { cipher: new CredentialCipher(config.encryptionKey) }),
         ...(kubernetes === undefined ? {} : { kubernetes }),
+        telemetry,
       })
     : undefined;
   const checkRunCoordinator = config.build
@@ -103,6 +123,7 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     controller.abort();
+    telemetry.metrics.set("previewforge_worker_health", 0);
     safeLog({ event: "worker.stopping", signal });
     await kafka.consumer.stop().catch(() => undefined);
     await kafka.consumer.disconnect().catch(() => undefined);
@@ -114,6 +135,7 @@ async function main(): Promise<void> {
       kafka.producer.disconnect(),
       kafka.admin.disconnect(),
       prisma.$disconnect(),
+      telemetryServer.close(),
     ]);
     safeLog({ event: "worker.stopped", signal });
   };
@@ -143,6 +165,7 @@ async function main(): Promise<void> {
   const relay = runRelayLoop(
     () => relayOutboxBatch(outbox, kafka.producer, { owner: config.kafkaClientId }),
     controller.signal,
+    telemetry,
   );
   const ttlSweep = runTtlSweeper(deletionRepository, {
     intervalMs: config.ttlSweepIntervalMs ?? DEFAULT_TTL_SWEEP_INTERVAL_MS,
@@ -197,6 +220,7 @@ async function main(): Promise<void> {
           afterClaim,
           consumerName: config.kafkaGroupId,
           workerId: config.kafkaClientId,
+          telemetry,
           commitOffsets: (offsets) => kafka.consumer.commitOffsets(offsets),
         }),
       ),
@@ -210,6 +234,7 @@ async function main(): Promise<void> {
                 repository: feedbackRepository,
                 coordinator: checkRunCoordinator,
                 consumerName: `${config.kafkaGroupId}:github-checks`,
+                telemetry,
                 commitOffsets: (offsets) => kafka.feedbackConsumer.commitOffsets(offsets),
               }),
             ),
@@ -225,6 +250,7 @@ async function main(): Promise<void> {
                 deleteNamespace: (environmentId) =>
                   cleanupReconciler.deletePreviewNamespace(environmentId),
                 consumerName: `${config.kafkaGroupId}:environment-cleanup`,
+                telemetry,
                 commitOffsets: (offsets) => kafka.cleanupConsumer.commitOffsets(offsets),
               }),
             ),
@@ -239,6 +265,7 @@ type ConsumerRuntime = {
   claims: DeploymentClaimRepository;
   consumerName: string;
   workerId: string;
+  telemetry: PreviewForgeTelemetry;
   afterClaim?: Parameters<typeof handleDeploymentMessage>[1]["afterClaim"];
   commitOffsets: (
     offsets: Array<{ topic: string; partition: number; offset: string }>,
@@ -249,6 +276,7 @@ type FeedbackConsumerRuntime = {
   repository: DeploymentFeedbackRepository;
   coordinator: GitHubCheckRunCoordinator;
   consumerName: string;
+  telemetry: PreviewForgeTelemetry;
   commitOffsets: (
     offsets: Array<{ topic: string; partition: number; offset: string }>,
   ) => Promise<unknown>;
@@ -259,6 +287,7 @@ type EnvironmentDeletionConsumerRuntime = {
   deliveryRepository: DeploymentFeedbackRepository;
   deleteNamespace: (environmentId: string) => Promise<void>;
   consumerName: string;
+  telemetry: PreviewForgeTelemetry;
   commitOffsets: (
     offsets: Array<{ topic: string; partition: number; offset: string }>,
   ) => Promise<unknown>;
@@ -296,6 +325,7 @@ function createBuildAfterClaim(input: {
   projectEnvironments: ProjectEnvironmentRepository;
   cipher?: CredentialCipher;
   kubernetes?: ReturnType<typeof createKubernetesResourceClient>;
+  telemetry: PreviewForgeTelemetry;
 }): NonNullable<ConsumerRuntime["afterClaim"]> {
   const tokenProvider = new GitHubInstallationTokenProvider({
     appId: input.config.githubAppId,
@@ -328,14 +358,32 @@ function createBuildAfterClaim(input: {
     const buildInput = resolveBuildInput(event, project, {
       registryHost: input.config.registryHost,
     });
-    const result: DeploymentBuildPipelineResult = await runDeploymentBuildPipeline(
-      {
-        deploymentId: claim.deploymentId,
-        desiredSha: event.commitSha,
-        ...buildInput,
-      },
-      { sourceClient, buildkit, deployments: input.deployments, logChunks: input.logChunks },
-    );
+    const buildSpan = input.telemetry.startSpan("deployment.build_pipeline", undefined, {
+      "previewforge.stage": "BUILDING",
+    });
+    const buildStartedAt = performance.now();
+    let result: DeploymentBuildPipelineResult;
+    try {
+      result = await runDeploymentBuildPipeline(
+        {
+          deploymentId: claim.deploymentId,
+          desiredSha: event.commitSha,
+          ...buildInput,
+        },
+        { sourceClient, buildkit, deployments: input.deployments, logChunks: input.logChunks },
+      );
+      buildSpan.setAttribute("previewforge.outcome", result.kind);
+      buildSpan.end(result.kind === "FAILED" ? "error" : "ok");
+      input.telemetry.metrics.observe(
+        "previewforge_deployment_stage_duration_ms",
+        performance.now() - buildStartedAt,
+        { stage: "BUILDING", outcome: result.kind },
+      );
+    } catch (error) {
+      buildSpan.setAttribute("error.type", error instanceof Error ? error.name : "unknown");
+      buildSpan.end("error");
+      throw error;
+    }
     if (result.kind === "DEPLOYING" && input.kubernetes !== undefined) {
       try {
         if (input.cipher === undefined)
@@ -360,6 +408,10 @@ function createBuildAfterClaim(input: {
           "PREVIEWFORGE_HEALTHCHECK_TIMEOUT_MS",
           process.env.PREVIEWFORGE_HEALTHCHECK_TIMEOUT_MS,
         );
+        const reconcileSpan = input.telemetry.startSpan("kubernetes.reconcile", undefined, {
+          "previewforge.stage": "DEPLOYING",
+        });
+        const reconcileStartedAt = performance.now();
         const reconciliation = await reconcilePreviewDeployment(
           {
             event,
@@ -387,6 +439,13 @@ function createBuildAfterClaim(input: {
             deployments: input.deployments,
             rollout: { kubernetes: input.kubernetes, healthCheck: httpHealthCheck },
           },
+        );
+        reconcileSpan.setAttribute("previewforge.outcome", reconciliation.kind);
+        reconcileSpan.end(reconciliation.kind === "FAILED" ? "error" : "ok");
+        input.telemetry.metrics.observe(
+          "previewforge_deployment_stage_duration_ms",
+          performance.now() - reconcileStartedAt,
+          { stage: "DEPLOYING", outcome: reconciliation.kind },
         );
         if (reconciliation.kind === "SUPERSEDED") return "SUPERSEDED";
         if (reconciliation.kind === "FAILED") return "FAILED";
@@ -419,25 +478,52 @@ async function consumeDeployment(
   payload: EachMessagePayload,
   runtime: ConsumerRuntime,
 ): Promise<void> {
-  const outcome = await handleDeploymentMessage(
+  const span = runtime.telemetry.startSpan(
+    "kafka.consume",
+    payload.message.headers?.traceparent?.toString(),
     {
-      topic: payload.topic,
-      partition: payload.partition,
-      offset: payload.message.offset,
-      key: payload.message.key,
-      value: payload.message.value,
-      ...(payload.message.headers === undefined ? {} : { headers: payload.message.headers }),
-    },
-    {
-      repository: runtime.claims,
-      consumerName: runtime.consumerName,
-      workerId: runtime.workerId,
-      ...(runtime.afterClaim === undefined ? {} : { afterClaim: runtime.afterClaim }),
-      offsets: {
-        commitOffset: (offset) => runtime.commitOffsets([offset]),
-      },
+      "messaging.system": "kafka",
+      "messaging.destination": payload.topic,
+      "messaging.operation": "process",
     },
   );
+  const startedAt = performance.now();
+  const outcome = await runtime.telemetry.runWithContext(span.context, () =>
+    handleDeploymentMessage(
+      {
+        topic: payload.topic,
+        partition: payload.partition,
+        offset: payload.message.offset,
+        key: payload.message.key,
+        value: payload.message.value,
+        ...(payload.message.headers === undefined ? {} : { headers: payload.message.headers }),
+      },
+      {
+        repository: runtime.claims,
+        consumerName: runtime.consumerName,
+        workerId: runtime.workerId,
+        ...(runtime.afterClaim === undefined ? {} : { afterClaim: runtime.afterClaim }),
+        offsets: {
+          commitOffset: (offset) => runtime.commitOffsets([offset]),
+        },
+      },
+    ),
+  );
+  span.setAttribute("previewforge.outcome", outcome.kind);
+  span.end(outcome.committed ? "ok" : "error");
+  runtime.telemetry.metrics.increment("previewforge_kafka_messages_total", {
+    topic: payload.topic,
+    consumer: runtime.consumerName,
+    outcome: outcome.kind,
+  });
+  runtime.telemetry.metrics.observe(
+    "previewforge_kafka_message_duration_ms",
+    performance.now() - startedAt,
+    { topic: payload.topic, consumer: runtime.consumerName, outcome: outcome.kind },
+  );
+  runtime.telemetry.metrics.increment("previewforge_deployment_outcomes_total", {
+    outcome: outcome.kind,
+  });
 
   safeLog({
     event: "worker.deployment-message",
@@ -466,11 +552,23 @@ async function consumeDeploymentFeedback(
     value: payload.message.value,
     ...(payload.message.headers === undefined ? {} : { headers: payload.message.headers }),
   };
-  const outcome = await handleDeploymentFeedbackMessage(record, {
-    repository: runtime.repository,
-    coordinator: runtime.coordinator,
-    consumerName: runtime.consumerName,
-    offsets: { commitOffset: (offset) => runtime.commitOffsets([offset]) },
+  const span = runtime.telemetry.startSpan(
+    "github.feedback",
+    payload.message.headers?.traceparent?.toString(),
+    { "messaging.system": "kafka", "messaging.destination": payload.topic },
+  );
+  const outcome = await runtime.telemetry.runWithContext(span.context, () =>
+    handleDeploymentFeedbackMessage(record, {
+      repository: runtime.repository,
+      coordinator: runtime.coordinator,
+      consumerName: runtime.consumerName,
+      offsets: { commitOffset: (offset) => runtime.commitOffsets([offset]) },
+    }),
+  );
+  span.setAttribute("previewforge.outcome", outcome.kind);
+  span.end(outcome.committed ? "ok" : "error");
+  runtime.telemetry.metrics.increment("previewforge_github_feedback_total", {
+    outcome: outcome.kind,
   });
   safeLog({
     event: "worker.github-check-message",
@@ -496,13 +594,23 @@ async function consumeEnvironmentDeletion(
     value: payload.message.value,
     ...(payload.message.headers === undefined ? {} : { headers: payload.message.headers }),
   };
-  const outcome = await handleEnvironmentDeletionMessage(record, {
-    repository: runtime.repository,
-    deliveryRepository: runtime.deliveryRepository,
-    deleteNamespace: runtime.deleteNamespace,
-    consumerName: runtime.consumerName,
-    offsets: { commitOffset: (offset) => runtime.commitOffsets([offset]) },
-  });
+  const span = runtime.telemetry.startSpan(
+    "cleanup.process",
+    payload.message.headers?.traceparent?.toString(),
+    { "messaging.system": "kafka", "messaging.destination": payload.topic },
+  );
+  const outcome = await runtime.telemetry.runWithContext(span.context, () =>
+    handleEnvironmentDeletionMessage(record, {
+      repository: runtime.repository,
+      deliveryRepository: runtime.deliveryRepository,
+      deleteNamespace: runtime.deleteNamespace,
+      consumerName: runtime.consumerName,
+      offsets: { commitOffset: (offset) => runtime.commitOffsets([offset]) },
+    }),
+  );
+  span.setAttribute("previewforge.outcome", outcome.kind);
+  span.end(outcome.committed ? "ok" : "error");
+  runtime.telemetry.metrics.increment("previewforge_cleanup_total", { outcome: outcome.kind });
   safeLog({
     event: "worker.environment-deletion-message",
     outcome: outcome.kind,
@@ -524,14 +632,26 @@ async function runRelayLoop(
     failed: number;
   }>,
   signal: AbortSignal,
+  telemetry: PreviewForgeTelemetry,
 ): Promise<void> {
   while (!signal.aborted) {
+    const span = telemetry.startSpan("outbox.relay", undefined, {
+      "messaging.system": "kafka",
+      "messaging.operation": "publish",
+    });
     try {
       const result = await relayBatch();
+      const outcome = result.failed > 0 ? "failed" : "published";
+      span.setAttribute("previewforge.outcome", outcome);
+      span.end(result.failed > 0 ? "error" : "ok");
+      telemetry.metrics.increment("previewforge_outbox_batches_total", { outcome });
       if (result.claimed > 0 || result.failed > 0) {
         safeLog({ event: "worker.outbox-batch", ...result });
       }
     } catch {
+      span.setAttribute("previewforge.outcome", "failed");
+      span.end("error");
+      telemetry.metrics.increment("previewforge_outbox_batches_total", { outcome: "failed" });
       safeLog({ event: "worker.outbox-batch", failed: 1, code: "OUTBOX_BATCH_FAILED" });
     }
     await waitForAbort(signal, RELAY_POLL_INTERVAL_MS);

@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { type PullRequestEvent, pullRequestEventSchema } from "@previewforge/contracts";
+import {
+  type PullRequestEvent,
+  pullRequestEventSchema,
+  traceParentSchema,
+} from "@previewforge/contracts";
 import { Prisma, type PrismaClient } from "@prisma/client";
 
 const MAX_TRANSACTION_RETRIES = 4;
@@ -15,6 +19,7 @@ export type WebhookRepositoryInput = {
   payloadSha256: string;
   event: PullRequestEvent;
   receivedAt?: Date;
+  traceParent?: string;
 };
 
 export type WebhookProcessResult = {
@@ -356,6 +361,7 @@ async function processOpen(
           eventType: "deployment.requested.v1",
           aggregateType: "deployment",
           aggregateId: deploymentId,
+          ...(input.traceParent === undefined ? {} : { traceParent: input.traceParent }),
           payload: {
             eventId,
             eventType: "deployment.requested.v1",
@@ -557,6 +563,9 @@ function validateInput(input: WebhookRepositoryInput): void {
   }
   if (input.eventName !== "pull_request") throw new WebhookPayloadValidationError();
   if (!/^[0-9a-f]{64}$/i.test(input.payloadSha256)) throw new WebhookPayloadValidationError();
+  if (input.traceParent !== undefined && !traceParentSchema.safeParse(input.traceParent).success) {
+    throw new WebhookPayloadValidationError();
+  }
   try {
     pullRequestEventSchema.parse(input.event);
   } catch {

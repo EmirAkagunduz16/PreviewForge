@@ -1,0 +1,80 @@
+{
+  "annotations": { "list": [] },
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Lifecycle throughput",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(previewforge_http_requests_total[1m]))", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "API failures",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum(rate(previewforge_api_errors_total[1m]))", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "title": "Deployment stage latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (stage) (rate(previewforge_deployment_stage_duration_ms_sum[1m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "title": "Kafka and outbox outcomes",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by (outcome) (rate(previewforge_kafka_messages_total[1m]))", "refId": "A" },
+        { "expr": "sum by (outcome) (rate(previewforge_outbox_batches_total[1m]))", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 5,
+      "title": "Cleanup and feedback",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by (outcome) (rate(previewforge_cleanup_total[1m]))", "refId": "A" },
+        { "expr": "sum by (outcome) (rate(previewforge_github_feedback_total[1m]))", "refId": "B" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "m8-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 6,
+      "title": "Worker health and traces",
+      "type": "stat",
+      "targets": [{ "expr": "previewforge_worker_health", "refId": "A" }]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["previewforge", "m8", "local"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "title": "PreviewForge M8 local hardening",
+  "uid": "previewforge-m8-overview",
+  "version": 1
+}
