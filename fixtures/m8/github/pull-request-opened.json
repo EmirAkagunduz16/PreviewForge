@@ -1,0 +1,19 @@
+{
+  "action": "opened",
+  "number": 8,
+  "installation": {
+    "id": 1800008
+  },
+  "repository": {
+    "id": 2800008,
+    "full_name": "previewforge/m8-fixtures"
+  },
+  "pull_request": {
+    "id": 3800008,
+    "number": 8,
+    "head": {
+      "sha": "1111111111111111111111111111111111111111"
+    },
+    "updated_at": "2026-09-17T08:00:00.000Z"
+  }
+}

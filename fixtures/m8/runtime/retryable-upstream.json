@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "m8-retryable-source-upstream",
+  "kind": "source-acquisition",
+  "request": {
+    "method": "GET",
+    "path": "/repos/previewforge/m8-fixtures/tarball/2222222222222222222222222222222222222222"
+  },
+  "responses": [
+    {
+      "status": 429,
+      "headers": {
+        "retry-after": "1"
+      },
+      "body": {
+        "message": "fixture rate limited"
+      }
+    },
+    {
+      "status": 200,
+      "archivePath": "source/healthy"
+    }
+  ],
+  "expected": {
+    "firstErrorCode": "SOURCE_RATE_LIMITED",
+    "firstRetryable": true,
+    "eventualStatus": 200
+  }
+}

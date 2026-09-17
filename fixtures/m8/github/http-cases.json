@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic behavior contract for the future local GitHub HTTP fixture.",
+  "webhookCases": [
+    {
+      "id": "deliver-once",
+      "payloadPath": "github/pull-request-opened.json",
+      "deliveryId": "m8-http-deliver-once-v1",
+      "repeat": 1,
+      "expected": {
+        "accepted": 1,
+        "duplicates": 0
+      }
+    },
+    {
+      "id": "duplicate-delivery",
+      "payloadPath": "github/pull-request-opened.json",
+      "deliveryId": "m8-http-duplicate-v1",
+      "repeat": 2,
+      "expected": {
+        "accepted": 1,
+        "duplicates": 1
+      }
+    },
+    {
+      "id": "delayed-synchronize",
+      "payloadPath": "github/pull-request-synchronize.json",
+      "deliveryId": "m8-http-delayed-synchronize-v1",
+      "delayMs": 150,
+      "repeat": 1,
+      "expected": {
+        "accepted": 1,
+        "duplicates": 0,
+        "staleShaMustNotPublish": true
+      }
+    },
+    {
+      "id": "lost-response-retry",
+      "payloadPath": "github/pull-request-synchronize.json",
+      "deliveryId": "m8-http-lost-response-v1",
+      "response": "drop-after-persist",
+      "repeat": 2,
+      "expected": {
+        "accepted": 1,
+        "duplicates": 1
+      }
+    }
+  ],
+  "sourceCases": [
+    {
+      "id": "healthy-source",
+      "requestPath": "/repos/previewforge/m8-fixtures/tarball/2222222222222222222222222222222222222222",
+      "archivePath": "source/healthy",
+      "firstResponse": 302,
+      "redirectHost": "codeload.fixture.test",
+      "finalResponse": 200
+    },
+    {
+      "id": "retryable-upstream",
+      "requestPath": "/repos/previewforge/m8-fixtures/tarball/2222222222222222222222222222222222222222",
+      "archivePath": "source/healthy",
+      "firstResponse": 429,
+      "retryAfterSeconds": 1,
+      "retryResponse": 200
+    }
+  ],
+  "checkRunCases": [
+    {
+      "id": "check-run-success",
+      "responsePath": "github/check-run-success.json",
+      "lostCreateResponse": true,
+      "retryMustReuseExternalId": true
+    },
+    {
+      "id": "check-run-failure",
+      "responsePath": "github/check-run-failure.json",
+      "lostCreateResponse": false,
+      "retryMustReuseExternalId": true
+    }
+  ]
+}

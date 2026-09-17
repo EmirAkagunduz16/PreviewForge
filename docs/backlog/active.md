@@ -6,16 +6,16 @@ explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
 
 ~~~yaml
 - id: M8-FIXTURES
-  status: queued
+  status: in-progress
   title: Create deterministic demo fixtures and the backup/restore drill
   owner: PreviewForge delivery
   depends_on: [M8-PLAN]
   acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-FIXTURES
   owned_paths: [fixtures/m8/, scripts/m8/fixtures/, docs/operations/m8-backup-restore.md]
-  verification_command: not-run until M8-FIXTURES implementation
-  next_action: add synthetic GitHub/source/build/runtime fixtures and run the isolated PostgreSQL restore plus Kafka topic/outbox replay drill
+  verification_command: node scripts/m8/fixtures/manifest.mjs --check && pnpm exec biome check fixtures/m8 scripts/m8/fixtures/manifest.mjs && pnpm docs:check && git diff --check
+  next_action: run the fixture-driven seed/restore drill against disposable PostgreSQL and Kafka, then prove ownership-safe teardown and zero fixture residue
   acceptance: seed and restore are repeatable, secrets are absent, and teardown leaves zero disposable fixture residue
-  evidence: not-run
+  evidence: manifest check/print, Node syntax, Biome, docs:check, and whitespace checks passed; real PostgreSQL/Kafka restore and teardown not-run yet
   evidence_commit: not-run
 
 - id: M8-E2E-FAULTS

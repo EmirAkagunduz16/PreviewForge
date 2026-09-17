@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "m8-local-hardening",
+  "repository": {
+    "installationId": "1800008",
+    "repositoryId": "2800008",
+    "repositoryFullName": "previewforge/m8-fixtures",
+    "pullRequestId": "3800008",
+    "pullRequestNumber": 8
+  },
+  "commits": {
+    "opened": "1111111111111111111111111111111111111111",
+    "synchronized": "2222222222222222222222222222222222222222"
+  },
+  "github": {
+    "webhookPayloads": [
+      {
+        "id": "opened",
+        "path": "github/pull-request-opened.json",
+        "deliveryId": "m8-fixtures-opened-v1",
+        "action": "opened",
+        "commitSha": "1111111111111111111111111111111111111111"
+      },
+      {
+        "id": "synchronize",
+        "path": "github/pull-request-synchronize.json",
+        "deliveryId": "m8-fixtures-synchronize-v1",
+        "action": "synchronize",
+        "commitSha": "2222222222222222222222222222222222222222"
+      },
+      {
+        "id": "closed",
+        "path": "github/pull-request-closed.json",
+        "deliveryId": "m8-fixtures-closed-v1",
+        "action": "closed",
+        "commitSha": "2222222222222222222222222222222222222222"
+      }
+    ],
+    "httpCasesPath": "github/http-cases.json",
+    "checkRunResponses": [
+      {
+        "id": "success",
+        "path": "github/check-run-success.json",
+        "conclusion": "success"
+      },
+      {
+        "id": "failure",
+        "path": "github/check-run-failure.json",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "source": [
+    {
+      "id": "healthy",
+      "path": "source/healthy",
+      "dockerfilePath": "Dockerfile",
+      "healthPath": "/health",
+      "expectedOutcome": "build-and-health-success"
+    },
+    {
+      "id": "build-failure",
+      "path": "source/build-failure",
+      "dockerfilePath": "Dockerfile",
+      "healthPath": "/health",
+      "expectedOutcome": "build-failure"
+    },
+    {
+      "id": "health-failure",
+      "path": "source/health-failure",
+      "dockerfilePath": "Dockerfile",
+      "healthPath": "/health",
+      "expectedOutcome": "health-check-failure"
+    }
+  ],
+  "runtime": {
+    "retryableUpstreamPath": "runtime/retryable-upstream.json"
+  },
+  "kafka": {
+    "topics": [
+      "previewforge.deployment-requests.v1",
+      "previewforge.deployment-events.v1",
+      "previewforge.environment-commands.v1"
+    ],
+    "consumerNames": [
+      "m8-fixtures-worker",
+      "m8-fixtures-worker:github-checks",
+      "m8-fixtures-worker:environment-cleanup"
+    ]
+  },
+  "ownership": {
+    "label": "previewforge.dev/m8-fixture",
+    "value": "m8-local-hardening",
+    "namespacePrefix": "previewforge-m8-",
+    "registryRepositoryPrefix": "m8-fixtures-"
+  },
+  "restore": {
+    "checkpointName": "m8-local-hardening-data-only",
+    "isolatedDatabasePrefix": "previewforge_m8_restore",
+    "authoritativeStore": "postgresql",
+    "transportReplay": "outbox-to-kafka"
+  }
+}

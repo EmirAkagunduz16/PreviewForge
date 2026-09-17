@@ -1,0 +1,8 @@
+{
+  "id": 5800009,
+  "external_id": "m8-fixtures-failure",
+  "status": "completed",
+  "conclusion": "failure",
+  "name": "PreviewForge preview",
+  "head_sha": "2222222222222222222222222222222222222222"
+}
