@@ -16,7 +16,7 @@ explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
   next_action: root review of the direct API/worker evidence, then run the complete local M8 gate with the existing real BuildKit/kind/Envoy acceptance identities before archiving
   acceptance: durable state, external side effects, redaction, stale-SHA fencing, idempotency, and cleanup remain correct after injected faults and restart
   evidence: API 1 file/2 tests passed against local PostgreSQL and a real Nest HTTP server; worker 1 file/6 tests passed against local PostgreSQL 18.1, Kafka 4.3.1, and a real HTTP Check Run fixture. Covered raw-body HMAC, duplicate/reordered/stale webhook delivery, before-outbox rollback, outbox publish-before-mark crash, worker offset redelivery, stale-SHA supersession, durable retry, lost Check Run create recovery, redaction, and interrupted cleanup. Removing the desired-SHA guard in a rebuilt database package made the targeted stale test fail with RETRY_SCHEDULED; restoring source/dist made it pass again. BuildKit/kind/Envoy READY/Gateway evidence is intentionally not claimed here and remains in the local gate.
-  evidence_commit: 5630eaf
+  evidence_commit: 7d7b609
 
 - id: M8-OBS
   status: queued
