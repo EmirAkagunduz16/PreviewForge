@@ -62,7 +62,7 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 ## M8 — Local hardening (active) — week 8
 
 - Add end-to-end tests, failure injection, metrics/traces, operational dashboards, backup/restore notes, and demo fixtures.
-- Acceptance: local disposable-runtime evidence covers open, synchronize race, failure, retry, ready, close cleanup, telemetry, restore, and zero residue.
+- Acceptance: local disposable-runtime evidence covers the available open, synchronize race, failure, retry, ready, close cleanup, telemetry, restore, and zero-residue boundaries; the required rootless BuildKit scenario remains open because no local BuildKit runtime is installed.
 - The AWS EKS/ECR demo is explicitly deferred to the blocked M9 cloud track; it is not an M8 dependency or acceptance claim.
 
 ## Deferred backlog

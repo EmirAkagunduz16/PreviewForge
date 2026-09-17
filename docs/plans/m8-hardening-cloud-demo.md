@@ -1,6 +1,6 @@
 # M8 execution plan — local hardening (cloud deferred)
 
-Status: active
+Status: active — local hardening implementation and available-boundary acceptance verified; rootless BuildKit gate needs rerun
 Owner: PreviewForge delivery
 Roadmap: [M8 — Local hardening](../delivery/roadmap.md#M8--local-hardening-active--week-8)
 Baseline before planning: HEAD 012e28f36058546cc1df7e785797fe8e80e1a634; tree 3c7ecc51e6b31eaa378f6cf4d038c45499f8db27. The protected untracked .codex/ directory is not part of this milestone.
@@ -32,6 +32,14 @@ multi-region operation, arbitrary manifests, team RBAC, public hostile
 multi-tenancy, Redis, managed database/Kafka provisioning, AWS deployment, or
 a production RPO/RTO/SLO commitment. EKS/ECR is a separately blocked future
 milestone, not an M8 exit criterion.
+
+Current evidence closes the fixtures, backup/restore, observability, direct
+failure-matrix, and real kind/Envoy acceptance slices. The integrated local
+runner and repository checks pass for the available runtime boundaries, but
+this host currently has no `buildkitd`, `buildctl`, or BuildKit socket. The
+rootless BuildKit portion of M8-LOCAL-ACCEPTANCE is therefore deliberately
+left open; prior hosted M4 evidence is recorded but is not relabeled as fresh
+local M8 evidence.
 
 ## Locked boundary and operating decisions
 
@@ -371,24 +379,24 @@ runtime, or a broader security permission.
 
 ## Exit checklist
 
-- [ ] M8-FIXTURES is repeatable, synthetic, ownership-safe, and its PostgreSQL
+- [x] M8-FIXTURES is repeatable, synthetic, ownership-safe, and its PostgreSQL
       restore/outbox replay drill is recorded.
 - [ ] M8-E2E-FAULTS proves open, synchronize supersession, failure, retry,
       READY, close cleanup, duplicate delivery, and crash-window recovery on
       real local dependencies.
-- [ ] M8-OBS exposes safe metrics, correlated traces across Kafka, and
+- [x] M8-OBS exposes safe metrics, correlated traces across Kafka, and
       provisioned dashboards populated by a real acceptance run.
 - [ ] M8-LOCAL-ACCEPTANCE passes after the final implementation changes with
       direct test discovery/counts, fault-sensitivity evidence, and zero
       disposable residue.
-- [ ] M8 has no AWS dependency or cloud spend; no AWS resource is created or
+- [x] M8 has no AWS dependency or cloud spend; no AWS resource is created or
       inspected during local hardening.
-- [ ] M9-CLOUD-DEMO remains blocked until explicit budget, billing alert,
+- [x] M9-CLOUD-DEMO remains blocked until explicit budget, billing alert,
       disposable account/region, and destroy-procedure approval are recorded.
-- [ ] No platform, GitHub, registry, database, Kafka, or Kubernetes credential
+- [x] No platform, GitHub, registry, database, Kafka, or Kubernetes credential
       enters a build context, image layer, event payload, API response, log,
       metric label, trace attribute, or preview Pod.
-- [ ] No production/shared target is used for destructive, concurrency,
+- [x] No production/shared target is used for destructive, concurrency,
       restore, or fault-injection tests.
 - [ ] Final report, active/archive backlog, roadmap, README, plan, reports
       index, and project knowledge agree; any VictusOS sync is pending until
@@ -405,9 +413,9 @@ status: complete
 acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-PLAN
 owned_paths: [docs/plans/m8-hardening-cloud-demo.md, docs/backlog/active.md, docs/backlog/archive.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: implement M8-FIXTURES in its exclusive paths, beginning with deterministic fixtures and the isolated PostgreSQL restore drill
+next_action: resume the local acceptance gate after a local rootless BuildKit runtime is available; M9 remains blocked
 blocker: none for the local planning gate; M9-CLOUD-DEMO is blocked by the user's no-unapproved-AWS-spend constraint and requires explicit budget approval before any AWS action
 acceptance: the M8 execution contract and every unfinished slice are recorded without claiming product implementation
 evidence: planning-gate commands after the document/backlog update
-evidence_commit: not-run until root commit
+evidence_commit: 67b49ac
 ~~~

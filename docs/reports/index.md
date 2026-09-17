@@ -28,3 +28,4 @@
 | RPT-2026-09-17-m7-pr-close | session | verified | [M7 PR-CLOSE acceptance](session-2026-09-17-m7-pr-close.md) | not yet synced |
 | RPT-2026-09-17-m7-ttl-orphan | session | verified | [M7 TTL and orphan cleanup](session-2026-09-17-m7-ttl-orphan.md) | not yet synced |
 | RPT-2026-09-17-m7-acceptance | session | verified | [M7 integrated acceptance](session-2026-09-17-m7-acceptance.md) | pending |
+| RPT-2026-09-17-m8-acceptance | session | verified | [M8 local hardening acceptance](session-2026-09-17-m8-acceptance.md) | pending |
