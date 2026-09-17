@@ -12,6 +12,26 @@ Validate the repository inputs before starting:
 node scripts/m8/fixtures/manifest.mjs --check
 ```
 
+For the normal local acceptance path, run the automated drill from the
+repository root:
+
+```bash
+pnpm infra:up
+node scripts/m8/fixtures/drill.mjs
+```
+
+The runner accepts only the local Compose PostgreSQL/Kafka ports, creates fresh
+`previewforge_m8_source_*` and `previewforge_m8_restore_*` databases, applies
+current migrations, seeds and repeats the webhook fixture, creates a data-only
+checkpoint, restores it into the isolated target, replays durable outbox rows
+through the normal Kafka relay, observes the event identities, deletes its
+temporary consumer group, and proves database/dump cleanup. It does not create
+registry or Kubernetes resources. The JSON output is safe to retain as local
+acceptance evidence; it contains no credentials or payload secrets.
+The bundled local PostgreSQL service is version 18; the runner invokes the
+matching `pg_dump` and `pg_restore` binaries inside that container. Manual host
+backup tools must use a compatible major version.
+
 ## Invariants
 
 - PostgreSQL is the authoritative workflow and backup source.
@@ -67,6 +87,7 @@ pg_dump \
   --data-only \
   --no-owner \
   --no-acl \
+  --exclude-table-data=_prisma_migrations \
   --file="$M8_DUMP_PATH"
 
 test -s "$M8_DUMP_PATH"
@@ -156,7 +177,7 @@ do
     /opt/kafka/bin/kafka-topics.sh \
     --bootstrap-server kafka:19092 \
     --create --if-not-exists --topic "$topic" \
-    --partitions 1 --replication-factor 1
+    --partitions 3 --replication-factor 1
 done
 ```
 

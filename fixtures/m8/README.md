@@ -30,3 +30,12 @@ The fixture ownership contract is deliberately explicit:
 
 The restore and teardown procedure is documented in
 [`docs/operations/m8-backup-restore.md`](../../docs/operations/m8-backup-restore.md).
+
+The repeatable local PostgreSQL/Kafka drill is run from the repository root:
+
+```bash
+node scripts/m8/fixtures/drill.mjs
+```
+
+It refuses non-loopback targets, creates uniquely named disposable databases,
+and reports the seed, restore, outbox replay, and teardown evidence as JSON.
