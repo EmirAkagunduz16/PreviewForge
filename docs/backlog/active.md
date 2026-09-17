@@ -1,8 +1,8 @@
 # Active backlog
 
-M8 is the active milestone. The planning gate is recorded in the
-[M8 execution plan](../plans/m8-hardening-cloud-demo.md); local acceptance is
-required before any EKS/ECR mutation.
+M8 is the active local-hardening milestone. The planning gate is recorded in
+the [M8 execution plan](../plans/m8-hardening-cloud-demo.md). AWS/EKS/ECR is
+explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
 
 ~~~yaml
 - id: M8-FIXTURES
@@ -57,29 +57,30 @@ required before any EKS/ECR mutation.
   evidence: not-run
   evidence_commit: not-run
 
-- id: M8-CLOUD-DEMO
-  status: queued
-  title: Deploy the gated demo to EKS and ECR
+- id: M9-CLOUD-DEMO
+  status: blocked
+  title: Deploy the deferred demo to EKS and ECR
   owner: PreviewForge delivery
-  depends_on: [M8-LOCAL-ACCEPTANCE]
-  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-CLOUD-DEMO
+  depends_on: [M8-LOCAL-ACCEPTANCE, explicit AWS budget approval]
+  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M9-CLOUD-DEMO
   owned_paths: [infrastructure/eks/, scripts/m8/cloud/, docs/infrastructure/m8-eks-ecr-demo.md, .github/workflows/m8-cloud-demo.yml]
-  verification_command: not-run until M8-CLOUD-DEMO implementation
-  next_action: after a recorded green local gate, validate AWS authority and demo endpoints, then deploy one disposable EKS/ECR environment with least-privilege RBAC and real CNI enforcement
-  acceptance: the same fixture reaches EKS READY through an immutable ECR digest, negative RBAC and network-policy probes pass, and close cleanup leaves no cloud demo residue
-  evidence: not-run
+  verification_command: not-run — AWS explicitly deferred
+  next_action: obtain explicit maximum spend, billing alert, disposable account/region, and destroy-procedure approval before any AWS preflight or provisioning
+  blocker: the user's AWS Free Tier is exhausted and no unapproved cloud spend is authorized
+  acceptance: after the future unblock, the fixture reaches EKS READY through an immutable ECR digest, negative RBAC and network-policy probes pass, and close cleanup leaves no cloud demo residue
+  evidence: blocked by cost boundary; no AWS calls made
   evidence_commit: not-run
 
 - id: M8-ACCEPTANCE
   status: queued
-  title: Close M8 with local and cloud evidence
+  title: Close M8 local hardening with evidence
   owner: PreviewForge delivery
-  depends_on: [M8-LOCAL-ACCEPTANCE, M8-CLOUD-DEMO]
+  depends_on: [M8-LOCAL-ACCEPTANCE]
   acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-ACCEPTANCE
   owned_paths: [docs/reports/session-2026-09-17-m8-acceptance.md, docs/reports/index.md, docs/backlog/active.md, docs/backlog/archive.md, docs/knowledge/previewforge-memory.md]
-  verification_command: not-run until all M8 implementation slices are integrated
-  next_action: write the evidence-backed M8 report, archive only proven slices, and rerun final repository, local, cloud, and residue checks
-  acceptance: final docs, runtime evidence, security checks, dashboard/trace observations, restore result, teardown, and backlog status agree without unverified claims
+  verification_command: not-run until all M8 local implementation slices are integrated
+  next_action: write the evidence-backed local M8 report, archive only proven slices, and rerun final repository, local, and residue checks without AWS
+  acceptance: final docs, local runtime evidence, security checks, dashboard/trace observations, restore result, teardown, and deferred M9 blocker agree without unverified cloud claims
   evidence: not-run
   evidence_commit: not-run
 ~~~

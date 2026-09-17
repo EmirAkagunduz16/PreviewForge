@@ -59,11 +59,11 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Delete on PR close, implement TTL policy, and add an orphan reconciler.
 - Acceptance: complete. Real PostgreSQL/Kafka/kind/Envoy acceptance verified repeated close, TTL expiry, DB-missing orphan cleanup, stale-SHA supersession, wrong-owner safety, and zero disposable residue; see the [M7 integrated acceptance report](../reports/session-2026-09-17-m7-acceptance.md).
 
-## M8 — Hardening and cloud demo (active) — week 8
+## M8 — Local hardening (active) — week 8
 
 - Add end-to-end tests, failure injection, metrics/traces, operational dashboards, backup/restore notes, and demo fixtures.
-- Deploy to one AWS EKS/ECR environment only after local acceptance criteria pass.
-- Acceptance: recorded demo covers open, synchronize race, failure, retry, ready, and close cleanup.
+- Acceptance: local disposable-runtime evidence covers open, synchronize race, failure, retry, ready, close cleanup, telemetry, restore, and zero residue.
+- The AWS EKS/ECR demo is explicitly deferred to the blocked M9 cloud track; it is not an M8 dependency or acceptance claim.
 
 ## Deferred backlog
 
@@ -72,3 +72,4 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Multiple containers and persistent storage
 - GitLab/Bitbucket
 - Production deployments and custom domains
+- M9 AWS EKS/ECR cloud demo, pending explicit budget, billing guard, and destroy-procedure approval
