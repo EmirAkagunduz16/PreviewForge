@@ -261,6 +261,10 @@ function isLoopbackRegistryHost(value, port) {
   return value === `localhost:${port}` || value === `127.0.0.1:${port}`;
 }
 
+function isIpv4Address(value) {
+  return /^[0-9]{1,3}(?:\.[0-9]{1,3}){3}$/u.test(value);
+}
+
 function resolveLocalRegistryHost(environment, port) {
   const explicit = environment.PREVIEWFORGE_REGISTRY_HOST?.trim();
   if (explicit) return parseRegistryHost(explicit);
@@ -270,20 +274,32 @@ function resolveLocalRegistryHost(environment, port) {
     return parseRegistryHost(configured);
   }
 
-  let gateway;
+  let gateways;
   try {
-    gateway = runSync(
+    gateways = runSync(
       "docker",
-      ["network", "inspect", "kind", "--format", "{{(index .IPAM.Config 0).Gateway}}"],
+      [
+        "network",
+        "inspect",
+        "kind",
+        "--format",
+        "{{range .IPAM.Config}}{{println .Gateway}}{{end}}",
+      ],
       { env: environment },
-    ).trim();
+    )
+      .split(/\r?\n/u)
+      .map((value) => value.trim())
+      .filter(Boolean);
   } catch (error) {
     throw new Error(
       `Cannot resolve the kind network gateway for the local registry: ${describeError(error)}`,
     );
   }
-  if (!/^[0-9]{1,3}(?:\.[0-9]{1,3}){3}$/u.test(gateway)) {
-    throw new Error(`Kind network gateway is not an IPv4 address: ${gateway || "empty"}`);
+  const gateway = gateways.find(isIpv4Address);
+  if (!gateway) {
+    throw new Error(
+      `Kind network gateway is not an IPv4 address: ${gateways.join(", ") || "empty"}`,
+    );
   }
   return `${gateway}:${port}`;
 }

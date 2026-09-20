@@ -25,7 +25,8 @@ sysctl settings, create a tunnel, or request GitHub/AWS credentials.
    local runtime starts:
 
    ```bash
-   registry_gateway="$(docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}')"
+   registry_gateway="$(docker network inspect kind --format '{{range .IPAM.Config}}{{println .Gateway}}{{end}}' | awk '/^[0-9]+([.][0-9]+){3}$/ { print; exit }')"
+   test -n "$registry_gateway"
    sudo env PREVIEWFORGE_BUILDKIT_REGISTRY_HOST="${registry_gateway}:55000" \
      ./scripts/m4-runner/stage-rootless-runtime-config.sh
    ```

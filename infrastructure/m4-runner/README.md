@@ -82,8 +82,9 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
      ./scripts/m4-runner/stage-rootless-runtime-config.sh
    ```
 
-   Use the current value from `docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}'`
-   instead of assuming `172.25.0.1`.
+   Use the current IPv4 gateway from
+   `docker network inspect kind --format '{{range .IPAM.Config}}{{println .Gateway}}{{end}}'`
+   instead of assuming `172.25.0.1`; kind may list an IPv6 gateway first.
 7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
    the staged runtime files and fails closed when either is missing or has the wrong ownership or
    mode. It executes `/usr/bin/rootlesskit` directly so Ubuntu's packaged per-binary AppArmor

@@ -74,7 +74,7 @@ as HTTPS.
 From an authenticated host terminal, stop the running rootless stack, restage
 its BuildKit config with
 `PREVIEWFORGE_BUILDKIT_REGISTRY_HOST=$(docker network inspect kind --format
-'{{(index .IPAM.Config 0).Gateway}}'):55000`, restart it as
+'{{range .IPAM.Config}}{{println .Gateway}}{{end}}' | awk '/^[0-9]+([.][0-9]+){3}$/ { print; exit }'):55000`, restart it as
 `previewforge-buildkit`, and verify `buildctl debug workers`. Then rerun
 `pnpm local:up`, repeated `pnpm local:up`, `pnpm local:status`, the real worker
 push, kind/Envoy routing, the browser navigation, child-failure propagation,
