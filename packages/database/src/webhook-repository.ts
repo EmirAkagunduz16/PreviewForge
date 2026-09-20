@@ -331,7 +331,10 @@ async function processOpen(
   await tx.environmentDeletionRequest.updateMany({
     where: {
       environmentId: environment.id,
-      status: { in: ["REQUESTED", "PROCESSING", "FAILED"] },
+      // A completed close request can be followed by a reopen. Keep the
+      // durable request row, but make it non-actionable before the new
+      // deployment recreates the preview namespace.
+      status: { in: ["REQUESTED", "PROCESSING", "FAILED", "COMPLETED"] },
     },
     data: { status: "CANCELLED", completedAt: receivedAt, failureReason: null },
   });

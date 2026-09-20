@@ -210,7 +210,7 @@ describe("WebhookRepository (PostgreSQL)", () => {
     if (!environment || !closed.deletionRequestId) throw new Error("reopen fixture is incomplete");
     await prisma.environmentDeletionRequest.update({
       where: { id: closed.deletionRequestId },
-      data: { status: "PROCESSING" },
+      data: { status: "COMPLETED", completedAt: new Date("2026-09-13T14:15:00.000Z") },
     });
 
     const reopened = await repository.process(
