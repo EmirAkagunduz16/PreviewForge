@@ -47,7 +47,7 @@ if [[ "$profile_test" == 0 && "$(id -un)" != previewforge-buildkit ]]; then
   failures=$((failures + 1))
 fi
 if [[ "$profile_test" == 1 && "$(id -u)" -ne 0 ]]; then
-  printf '--profile-test must execute as root so AppArmor status can be inspected\n' >&2
+  printf '%s\n' '--profile-test must execute as root so AppArmor status can be inspected' >&2
   failures=$((failures + 1))
 fi
 

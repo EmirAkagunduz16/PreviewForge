@@ -40,11 +40,19 @@ export class ProjectService {
     const session = await this.auth.authenticate(sessionToken);
     const parsed = projectImportRequestSchema.safeParse(value);
     if (!parsed.success || !parsed.data.installationId) {
-      throw new BadRequestException("Invalid project import request");
+      throw new BadRequestException({
+        code: "INVALID_PROJECT_IMPORT",
+        message: "Invalid project import request",
+      });
     }
     const input = parsed.data;
     const installationId = input.installationId;
-    if (!installationId) throw new BadRequestException("Invalid project import request");
+    if (!installationId) {
+      throw new BadRequestException({
+        code: "INVALID_PROJECT_IMPORT",
+        message: "Invalid project import request",
+      });
+    }
     const installation = await this.requireInstallation(installationId, session.userId);
     let userToken = await this.userToken(session.userId);
     let repository: ProjectRepositoryCandidate | undefined;

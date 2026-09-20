@@ -33,7 +33,7 @@ export class ProjectsController {
       );
     } catch (error) {
       if (error instanceof ProjectImportError) {
-        throw new BadRequestException(error.message);
+        throw new BadRequestException({ code: error.code, message: error.message });
       }
       throw error;
     }

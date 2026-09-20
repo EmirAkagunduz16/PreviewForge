@@ -29,3 +29,8 @@
 | RPT-2026-09-17-m7-ttl-orphan | session | verified | [M7 TTL and orphan cleanup](session-2026-09-17-m7-ttl-orphan.md) | not yet synced |
 | RPT-2026-09-17-m7-acceptance | session | verified | [M7 integrated acceptance](session-2026-09-17-m7-acceptance.md) | pending |
 | RPT-2026-09-17-m8-acceptance | session | verified | [M8 local hardening acceptance](session-2026-09-17-m8-acceptance.md) | synced to VictusOS project note |
+| RPT-2026-09-18-m8-local-gate | session | verified | [M8 local gate rerun](session-2026-09-18-m8-local-gate.md) | [synced](../../../../Documents/VictusOS/Reports/PreviewForge/2026-09-18%20M8%20Local%20Gate.md) |
+| RPT-2026-09-18-m9-local-runtime-checkpoint | session | verified | [M9 local runtime checkpoint](session-2026-09-18-m9-local-runtime-checkpoint.md) | not yet synced |
+| RPT-2026-09-18-m9-onboarding-checkpoint | session | checkpoint | [M9 onboarding implementation checkpoint](session-2026-09-18-m9-onboarding-checkpoint.md) | not yet synced |
+| RPT-2026-09-18-m9-local-routing-checkpoint | session | checkpoint | [M9 local routing implementation checkpoint](session-2026-09-18-m9-local-routing-checkpoint.md) | not yet synced |
+| RPT-2026-09-18-m9-local-demo-fixture-checkpoint | session | checkpoint | [M9 local demo fixture checkpoint](session-2026-09-18-m9-local-demo-fixture-checkpoint.md) | not yet synced |

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "m9-local-demo",
+  "repository": {
+    "installationId": "1900009",
+    "repositoryId": "2900009",
+    "repositoryFullName": "previewforge/m9-fixtures",
+    "pullRequestId": "3900009",
+    "pullRequestNumber": 9
+  },
+  "commits": {
+    "opened": "9999999999999999999999999999999999999999",
+    "synchronized": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "github": {
+    "webhookPayloads": [
+      {
+        "id": "opened",
+        "path": "github/pull-request-opened.json",
+        "deliveryId": "m9-fixtures-opened-v1",
+        "action": "opened",
+        "commitSha": "9999999999999999999999999999999999999999"
+      },
+      {
+        "id": "synchronize",
+        "path": "github/pull-request-synchronize.json",
+        "deliveryId": "m9-fixtures-synchronize-v1",
+        "action": "synchronize",
+        "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "id": "closed",
+        "path": "github/pull-request-closed.json",
+        "deliveryId": "m9-fixtures-closed-v1",
+        "action": "closed",
+        "commitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "httpCasesPath": "github/http-cases.json",
+    "checkRunResponses": [
+      {
+        "id": "success",
+        "path": "github/check-run-success.json",
+        "conclusion": "success"
+      },
+      {
+        "id": "failure",
+        "path": "github/check-run-failure.json",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "source": {
+    "path": "source/app",
+    "dockerfilePath": "Dockerfile",
+    "healthPath": "/health",
+    "expectedOutcome": "build-and-health-success"
+  },
+  "ownership": {
+    "label": "previewforge.dev/m9-fixture",
+    "value": "m9-local-demo",
+    "namespacePrefix": "previewforge-m9-",
+    "registryRepositoryPrefix": "m9-fixtures-",
+    "stateDirectory": "previewforge-m9-github-fixture"
+  },
+  "journey": [
+    "sign-in",
+    "install",
+    "import",
+    "open",
+    "duplicate-open",
+    "synchronize",
+    "failure-retry",
+    "ready-preview",
+    "live-logs",
+    "close",
+    "repeat"
+  ]
+}

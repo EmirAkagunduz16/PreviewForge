@@ -25,6 +25,26 @@ describe("createErrorEnvelope", () => {
       },
     });
   });
+
+  it("preserves an explicitly safe domain error code", () => {
+    expect(
+      createErrorEnvelope(
+        new BadRequestException({
+          code: "DOCKERFILE_NOT_FOUND",
+          message: "Dockerfile was not found",
+        }),
+        400,
+        "req-3",
+      ),
+    ).toEqual({
+      error: {
+        code: "DOCKERFILE_NOT_FOUND",
+        message: "Dockerfile was not found",
+        requestId: "req-3",
+        statusCode: 400,
+      },
+    });
+  });
 });
 
 describe("ApiExceptionFilter", () => {

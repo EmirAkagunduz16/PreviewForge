@@ -13,7 +13,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "55432:5432"
+      - "${PREVIEWFORGE_POSTGRES_LOCAL_PORT:-55432}:5432"
     volumes:
       # PostgreSQL 18 stores versioned data below /var/lib/postgresql.
       # Mount the parent path so container recreation preserves PGDATA.
@@ -26,7 +26,7 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: CONTROLLER://:9093,PLAINTEXT://:19092,PLAINTEXT_HOST://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:59092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:${PREVIEWFORGE_KAFKA_LOCAL_PORT:-59092}
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -40,14 +40,14 @@ services:
       timeout: 5s
       retries: 30
     ports:
-      - "59092:9092"
+      - "${PREVIEWFORGE_KAFKA_LOCAL_PORT:-59092}:9092"
 
   registry:
     image: registry:2.8.3
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
     ports:
-      - "55000:5000"
+      - "${PREVIEWFORGE_REGISTRY_LOCAL_PORT:-55000}:5000"
     volumes:
       - registry-data:/var/lib/registry
 

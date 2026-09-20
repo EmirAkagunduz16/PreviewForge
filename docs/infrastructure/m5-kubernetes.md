@@ -85,12 +85,13 @@ The helper waits for exactly one Service owned by `default/previewforge`, then r
 `PREVIEWFORGE_ENVOY_NAMESPACE` for another platform Gateway.
 
 To prove HTTPRoute hostname routing, use the hostname rendered by the reconciler (for environment
-ID `ENVIRONMENT_ID`, it is `preview-ENVIRONMENT_ID.previewforge.local`) in the request's `Host`
-header. In a second terminal, replace `ENVIRONMENT_ID` and the health path with the fixture values:
+ID `ENVIRONMENT_ID`, it is `preview-ENVIRONMENT_ID.preview.localhost`) in the request's `Host`
+header. The clickable browser URL adds `:18080`; the HTTPRoute identity stays portless. In a
+second terminal, replace `ENVIRONMENT_ID` and the health path with the fixture values:
 
 ```sh
 curl --fail --silent --show-error \
-  --header 'Host: preview-ENVIRONMENT_ID.previewforge.local' \
+  --header 'Host: preview-ENVIRONMENT_ID.preview.localhost' \
   http://127.0.0.1:18080/health
 ```
 

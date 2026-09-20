@@ -72,6 +72,11 @@ input {
   margin-bottom: 1rem;
   font-weight: 700;
 }
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
 .muted,
 small {
   color: var(--muted);
@@ -267,6 +272,60 @@ small {
   font-size: clamp(2.5rem, 7vw, 5rem);
   letter-spacing: -0.06em;
 }
+.onboarding {
+  margin-top: 2rem;
+}
+.onboarding h2 {
+  margin: 0;
+}
+.onboarding .section-heading {
+  align-items: flex-start;
+}
+.onboarding .section-heading p {
+  margin: 0.45rem 0 0;
+  font-weight: 400;
+}
+.onboarding-form {
+  display: grid;
+  gap: 1rem;
+}
+.onboarding-form label,
+.form-grid label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.onboarding-form input,
+.onboarding-form select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: #0b1015;
+  color: var(--text);
+  padding: 0.65rem;
+}
+.onboarding-form select:disabled,
+.onboarding-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.7fr 1fr;
+  gap: 0.75rem;
+}
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.onboarding-note {
+  border: 1px solid var(--line);
+  background: #ffffff08;
+  color: var(--muted);
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
 .skeleton {
   height: 12rem;
   background: linear-gradient(90deg, #ffffff08, #ffffff1a, #ffffff08);
@@ -274,7 +333,8 @@ small {
 }
 @media (max-width: 760px) {
   .grid,
-  .split {
+  .split,
+  .form-grid {
     grid-template-columns: 1fr;
   }
   .env form {

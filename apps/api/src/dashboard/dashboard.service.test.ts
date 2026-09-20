@@ -76,6 +76,48 @@ describe("DashboardService", () => {
       "123e4567-e89b-12d3-a456-426614174001",
     );
   });
+
+  it("adds the same local preview URL to environment and deployment projections", async () => {
+    const auth = { authenticate: vi.fn(async () => ({ userId: "owner-a" })) };
+    const repository = fakeRepository();
+    const environmentId = "123e4567-e89b-12d3-a456-426614174000";
+    const deploymentId = "123e4567-e89b-12d3-a456-426614174001";
+    repository.listPreviews.mockResolvedValue({
+      items: [{ id: environmentId, currentDeployment: { id: deploymentId } }],
+      nextCursor: null,
+    });
+    repository.listDeployments.mockResolvedValue({
+      items: [{ id: deploymentId, environment: { id: environmentId } }],
+      nextCursor: null,
+    });
+    repository.findDeployment.mockResolvedValue({
+      id: deploymentId,
+      environment: { id: environmentId },
+    });
+    const service = new DashboardService(auth, repository, {
+      baseDomain: "preview.localhost",
+      scheme: "http",
+      localPort: 18080,
+    });
+    const url = `http://preview-${environmentId}.preview.localhost:18080/`;
+
+    await expect(service.listPreviews("session", environmentId, {})).resolves.toMatchObject({
+      items: [
+        {
+          previewUrl: url,
+          currentDeployment: { id: deploymentId, previewUrl: url },
+        },
+      ],
+    });
+    await expect(service.listDeployments("session", environmentId, {})).resolves.toMatchObject({
+      items: [{ previewUrl: url, environment: { id: environmentId, previewUrl: url } }],
+    });
+    await expect(service.getDeployment("session", deploymentId)).resolves.toEqual({
+      id: deploymentId,
+      previewUrl: url,
+      environment: { id: environmentId, previewUrl: url },
+    });
+  });
 });
 
 function fakeRepository(): DashboardRepositoryPort & {

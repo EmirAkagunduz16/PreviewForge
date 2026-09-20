@@ -84,6 +84,31 @@ describe("AuthService", () => {
     expect(repository.consumed).toBe(false);
   });
 
+  it("lists only the installations owned by the authenticated session", async () => {
+    const repository = new MemoryRepository();
+    repository.installations = [
+      {
+        id: "installation-1",
+        githubInstallationId: "42",
+        githubAccountId: null,
+        accountLogin: "octo",
+        accountType: "User",
+        ownerId: "user-id",
+      },
+    ];
+    const service = new AuthService(
+      repository,
+      fakeGithub(),
+      new CredentialCipher(Buffer.alloc(32)),
+      config,
+    );
+
+    await expect(service.listInstallations("session-token")).resolves.toEqual(
+      repository.installations,
+    );
+    expect(repository.listedOwnerId).toBe("user-id");
+  });
+
   it("requires both user-scoped and app-scoped installation verification", async () => {
     const repository = new MemoryRepository();
     const github = fakeGithub();
@@ -181,6 +206,8 @@ class MemoryRepository implements AuthRepository {
   credential?: GitHubCredentialRecord;
   sessionToken?: string;
   claims: Array<{ githubInstallationId: string; ownerId: string }> = [];
+  installations: InstallationRecord[] = [];
+  listedOwnerId?: string;
 
   lastState(): string {
     const state = [...this.states.keys()].at(-1);
@@ -247,7 +274,7 @@ class MemoryRepository implements AuthRepository {
     input: Parameters<AuthRepository["claimInstallation"]>[0],
   ): Promise<InstallationRecord> {
     this.claims.push(input);
-    return {
+    const record = {
       id: "installation-id",
       githubInstallationId: input.githubInstallationId,
       githubAccountId: null,
@@ -255,5 +282,12 @@ class MemoryRepository implements AuthRepository {
       accountType: input.accountType,
       ownerId: input.ownerId,
     };
+    this.installations.push(record);
+    return record;
+  }
+
+  async listInstallations(ownerId: string): Promise<InstallationRecord[]> {
+    this.listedOwnerId = ownerId;
+    return this.installations.filter((installation) => installation.ownerId === ownerId);
   }
 }

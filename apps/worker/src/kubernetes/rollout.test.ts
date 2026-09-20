@@ -13,7 +13,7 @@ const input = {
   commitSha: "a".repeat(40),
   namespace: "pf-22222222-2222-4222-8222-222222222222",
   deploymentName: "preview",
-  hostname: "preview-22222222-2222-4222-8222-222222222222.previewforge.local",
+  hostname: "preview-22222222-2222-4222-8222-222222222222.preview.localhost",
   healthPath: "/healthz",
   rolloutTimeoutMs: 100,
   pollIntervalMs: 0,

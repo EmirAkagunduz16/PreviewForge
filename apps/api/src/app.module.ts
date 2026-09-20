@@ -1,5 +1,6 @@
 import type { DynamicModule } from "@nestjs/common";
 import { Module } from "@nestjs/common";
+import { loadPreviewUrlConfig } from "@previewforge/contracts";
 import {
   AuthInstallationRepository,
   createPrismaClient,
@@ -82,6 +83,7 @@ export class AppModule {
     const webhookRepository = new WebhookRepository(prisma, {
       previewTtlSeconds: runtime.previewTtlSeconds,
     });
+    const previewUrlConfig = loadPreviewUrlConfig(process.env, config.nodeEnv);
 
     return {
       module: AppModule,
@@ -138,7 +140,7 @@ export class AppModule {
           provide: DashboardService,
           inject: [DASHBOARD_AUTH, DASHBOARD_REPOSITORY],
           useFactory: (...dependencies: ConstructorParameters<typeof DashboardService>) =>
-            new DashboardService(...dependencies),
+            new DashboardService(dependencies[0], dependencies[1], previewUrlConfig),
         },
         { provide: PROJECT_INSTALLATION_REPOSITORY, useValue: authRepository },
         { provide: PROJECT_GITHUB, useValue: github },

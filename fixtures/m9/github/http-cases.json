@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "description": "Controlled loopback GitHub behavior for the M9 browser journey.",
+  "oauthCases": [
+    "authorize redirects with one-time code and state",
+    "token exchange returns a synthetic short-lived user token",
+    "installation setup redirects with the selected installation id"
+  ],
+  "repositoryCases": [
+    "one pull-enabled fixture repository",
+    "one pull-disabled repository for the permission state",
+    "Dockerfile content is a file with the requested path"
+  ],
+  "webhookCases": [
+    {
+      "id": "duplicate-open",
+      "payloadPath": "github/pull-request-opened.json",
+      "repeat": 2,
+      "expected": { "accepted": 1, "duplicates": 1 }
+    },
+    {
+      "id": "synchronize",
+      "payloadPath": "github/pull-request-synchronize.json",
+      "repeat": 1,
+      "expected": { "accepted": 1, "staleShaMustNotPublish": true }
+    },
+    {
+      "id": "close-repeat",
+      "payloadPath": "github/pull-request-closed.json",
+      "repeat": 2,
+      "expected": { "accepted": 1, "duplicates": 1, "cleanupRequested": true }
+    }
+  ],
+  "sourceCases": [
+    {
+      "id": "healthy-source",
+      "archivePath": "source/app",
+      "firstResponse": 302,
+      "redirectHost": "loopback-fixture",
+      "finalResponse": 200
+    }
+  ],
+  "checkRunCases": [
+    {
+      "id": "lost-create-response",
+      "lostCreateResponse": true,
+      "retryMustReuseExternalId": true
+    },
+    {
+      "id": "terminal-failure",
+      "lostCreateResponse": false,
+      "retryMustReuseExternalId": true
+    }
+  ]
+}

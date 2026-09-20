@@ -11,7 +11,12 @@ REPOSITORY_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 REGISTRY_CONTAINER="previewforge-registry-1"
 REGISTRY_NETWORK="previewforge_default"
 KIND_NETWORK="kind"
-REGISTRY_HOST="localhost:55000"
+REGISTRY_PORT="${PREVIEWFORGE_REGISTRY_LOCAL_PORT:-55000}"
+if [[ ! "$REGISTRY_PORT" =~ ^[0-9]+$ || "$REGISTRY_PORT" -lt 1 || "$REGISTRY_PORT" -gt 65535 ]]; then
+  echo 'PREVIEWFORGE_REGISTRY_LOCAL_PORT must be a numeric port in 1..65535' >&2
+  exit 2
+fi
+REGISTRY_HOST="localhost:${REGISTRY_PORT}"
 REGISTRY_ENDPOINT="http://${REGISTRY_CONTAINER}:5000"
 HOSTS_DIR="/etc/containerd/certs.d/${REGISTRY_HOST}"
 HOSTS_ASSET="${REPOSITORY_ROOT}/infrastructure/kubernetes/local-registry-hosts.toml"
@@ -45,8 +50,8 @@ if [[ "$(docker inspect -f '{{.State.Running}}' "$REGISTRY_CONTAINER")" != "true
   exit 1
 fi
 if ! docker port "$REGISTRY_CONTAINER" 5000/tcp 2>/dev/null |
-  grep -Eq '(^|:)55000$'; then
-  echo "required registry host port mapping is missing: localhost:55000 -> ${REGISTRY_CONTAINER}:5000" >&2
+  grep -Eq "(^|:)${REGISTRY_PORT}$"; then
+  echo "required registry host port mapping is missing: ${REGISTRY_HOST} -> ${REGISTRY_CONTAINER}:5000" >&2
   exit 1
 fi
 

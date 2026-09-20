@@ -2,11 +2,11 @@
 
 PreviewForge is a small developer platform that creates an isolated, temporary preview environment for each GitHub pull request.
 
-The first release supports one GitHub repository, one Dockerfile, one HTTP container, and one preview environment per pull request. It deliberately does not provision Kubernetes clusters or application databases.
+The first release supports one GitHub repository, one Dockerfile, one HTTP container, and one preview environment per pull request. The local runtime provisions disposable platform dependencies and a kind/Kubernetes preview cluster; user applications still do not get multiple containers, persistent storage, or an application database.
 
 ## Status
 
-The repository is in M8, the hardening and cloud demo phase. M0 through M7 are complete and archived with evidence. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
+M0 through M8 are complete and archived with evidence. The repository is in M9, the local-product-experience milestone: one-command local runtime, browser onboarding/import, clickable local preview routing, and deterministic end-to-end acceptance. The paid AWS cloud demo is re-sequenced as blocked M10 work. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
 
 ## Architecture at a glance
 
@@ -44,17 +44,36 @@ Run `pnpm run doctor` to inspect the current machine. The explicit `run` is requ
 ```bash
 cp .env.example .env
 pnpm install
-pnpm infra:up
-pnpm dev
+pnpm local:up
 ```
 
-Local infrastructure commands use the project-scoped `default` Docker context and do not change your global selection. Override it when needed with `PREVIEWFORGE_DOCKER_CONTEXT=<name> pnpm infra:up`; the standard `DOCKER_CONTEXT` variable is also supported. `pnpm doctor` checks the same context and verifies both the daemon and Compose plugin.
+`pnpm local:up` is the foreground local runtime supervisor. It preflights the
+Docker context, accepted rootless BuildKit socket, kind/Gateway prerequisites,
+database migrations, and service health before reporting the dashboard ready.
+Use `pnpm local:status` from another terminal and `pnpm local:down` to stop only
+the owned runtime. Complete first-time setup, including the rootless BuildKit
+boundary and GitHub webhook reachability, is documented in
+[local development operations](docs/operations/local-development.md).
+For a credential-free local product journey, use the controlled GitHub fixture
+described in [local GitHub App operations](docs/operations/local-github-app.md).
+
+Local infrastructure commands use the project-scoped `default` Docker context and do not change your global selection. Override it when needed with `PREVIEWFORGE_DOCKER_CONTEXT=<name> pnpm infra:up`; the standard `DOCKER_CONTEXT` variable is also supported. `pnpm run doctor` checks the same context and verifies both the daemon and Compose plugin.
 
 - Web: <http://localhost:3000>
 - API health: <http://localhost:4000/health>
 - Kafka: `localhost:59092`
 - PostgreSQL: `localhost:55432`
 - OCI registry: `localhost:55000`
+
+Set the matching `PREVIEWFORGE_POSTGRES_LOCAL_PORT`,
+`PREVIEWFORGE_KAFKA_LOCAL_PORT`, or `PREVIEWFORGE_REGISTRY_LOCAL_PORT` values
+when a default port is already occupied; keep `DATABASE_URL`, `KAFKA_BROKERS`,
+`REGISTRY_HOST`, and `CONTAINER_REGISTRY` aligned.
+
+When a preview reaches `READY`, the dashboard and GitHub Check expose the same
+clickable local URL, for example
+`http://preview-<environment-id>.preview.localhost:18080/`. The hostname is the
+HTTPRoute identity; `18080` is the loopback Gateway forward.
 
 Run the complete local quality gate with:
 

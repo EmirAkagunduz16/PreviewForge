@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { loadPreviewUrlConfig, type PreviewUrlConfig, previewUrl } from "@previewforge/contracts";
 import type { DashboardCursor, DashboardPageOptions } from "@previewforge/database";
 import type { ProjectAuthPort } from "../projects/project.types.js";
 import type { DashboardRepositoryPort } from "./dashboard.types.js";
@@ -12,6 +13,7 @@ export class DashboardService {
   constructor(
     private readonly auth: ProjectAuthPort,
     private readonly dashboard: DashboardRepositoryPort,
+    private readonly previewUrlConfig: PreviewUrlConfig = loadPreviewUrlConfig({}, "test"),
   ) {}
 
   async listProjects(sessionToken: string | undefined, query: unknown) {
@@ -23,14 +25,22 @@ export class DashboardService {
     const { userId } = await this.auth.authenticate(sessionToken);
     const id = parseUuid(projectId, "projectId");
     if (!(await this.dashboard.hasOwnedProject(userId, id))) throw new NotFoundException();
-    return encodePage(await this.dashboard.listPreviews(userId, id, parsePageOptions(query)));
+    const page = await this.dashboard.listPreviews(userId, id, parsePageOptions(query));
+    return encodePage({
+      ...page,
+      items: page.items.map((item) => withPreviewUrls(item, this.previewUrlConfig)),
+    });
   }
 
   async listDeployments(sessionToken: string | undefined, projectId: string, query: unknown) {
     const { userId } = await this.auth.authenticate(sessionToken);
     const id = parseUuid(projectId, "projectId");
     if (!(await this.dashboard.hasOwnedProject(userId, id))) throw new NotFoundException();
-    return encodePage(await this.dashboard.listDeployments(userId, id, parsePageOptions(query)));
+    const page = await this.dashboard.listDeployments(userId, id, parsePageOptions(query));
+    return encodePage({
+      ...page,
+      items: page.items.map((item) => withPreviewUrls(item, this.previewUrlConfig)),
+    });
   }
 
   async getDeployment(sessionToken: string | undefined, deploymentId: string) {
@@ -40,8 +50,35 @@ export class DashboardService {
       parseUuid(deploymentId, "deploymentId"),
     );
     if (!deployment) throw new NotFoundException();
-    return deployment;
+    return withPreviewUrls(deployment, this.previewUrlConfig);
   }
+}
+
+function withPreviewUrls(value: unknown, config: PreviewUrlConfig): unknown {
+  if (!isRecord(value)) return value;
+
+  const environment = isRecord(value.environment) ? value.environment : undefined;
+  const environmentId =
+    typeof environment?.id === "string"
+      ? environment.id
+      : typeof value.id === "string"
+        ? value.id
+        : undefined;
+  if (environmentId === undefined) return value;
+
+  const url = previewUrl(environmentId, config);
+  const result: Record<string, unknown> = { ...value, previewUrl: url };
+  if (environment !== undefined) {
+    result.environment = { ...environment, previewUrl: url };
+  }
+  if (isRecord(value.currentDeployment)) {
+    result.currentDeployment = { ...value.currentDeployment, previewUrl: url };
+  }
+  return result;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parsePageOptions(value: unknown): DashboardPageOptions {

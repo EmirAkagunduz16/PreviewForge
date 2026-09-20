@@ -175,6 +175,11 @@ export class AuthService {
     return { authorizationUrl: setup.toString(), bindingCookieValue: binding };
   }
 
+  async listInstallations(sessionToken: string | undefined): Promise<InstallationRecord[]> {
+    const session = await this.authenticate(sessionToken);
+    return this.repository.listInstallations(session.userId);
+  }
+
   async finishInstallation(
     query: unknown,
     binding: string | undefined,

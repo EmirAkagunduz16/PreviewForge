@@ -111,6 +111,8 @@ describe("AuthInstallationRepository (PostgreSQL)", () => {
     });
     expect(repeated.id).toBe(first.id);
     const beforeIdentityConflict = await repository.findInstallation(installationId);
+    await expect(repository.listInstallations(user.id)).resolves.toEqual([beforeIdentityConflict]);
+    await expect(repository.listInstallations(randomUUID())).resolves.toEqual([]);
     await expect(
       repository.claimInstallation({
         githubInstallationId: installationId,

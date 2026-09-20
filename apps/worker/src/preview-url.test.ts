@@ -17,11 +17,21 @@ describe("preview URL configuration", () => {
     );
   });
 
-  it("defaults local workers to the existing previewforge.local route", () => {
+  it("defaults local workers to the resolvable localhost route", () => {
     expect(loadPreviewUrlConfig({}, "test")).toEqual({
-      baseDomain: "previewforge.local",
+      baseDomain: "preview.localhost",
       scheme: "http",
     });
+  });
+
+  it("adds the configured local Gateway port only to the user-facing URL", () => {
+    const config = loadPreviewUrlConfig(
+      { PREVIEW_BASE_DOMAIN: "preview.localhost", PREVIEWFORGE_GATEWAY_LOCAL_PORT: "18080" },
+      "development",
+    );
+    expect(config).toEqual({ baseDomain: "preview.localhost", scheme: "http", localPort: 18080 });
+    expect(previewHostname(environmentId, config.baseDomain)).not.toContain(":18080");
+    expect(previewUrl(environmentId, config)).toContain(":18080/");
   });
 
   it("requires a public HTTPS domain in production", () => {

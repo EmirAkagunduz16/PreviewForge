@@ -67,7 +67,7 @@ export function renderPreviewResources(input: PreviewResourceInput): PreviewReso
   };
   const hostname = previewHostname(
     input.environmentId,
-    input.previewBaseDomain ?? "previewforge.local",
+    input.previewBaseDomain ?? "preview.localhost",
   );
   const serviceName = "preview";
 

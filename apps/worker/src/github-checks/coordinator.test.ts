@@ -1,5 +1,6 @@
 import type { DeploymentFeedbackContext, DeploymentFeedbackLock } from "@previewforge/database";
 import { describe, expect, it } from "vitest";
+import type { PreviewUrlConfig } from "../preview-url.js";
 import { GitHubCheckRunError, type GitHubCheckRunRequest } from "./client.js";
 import {
   type DeploymentFeedbackEvent,
@@ -115,11 +116,15 @@ class FakeClient {
   }
 }
 
-function coordinator(repository: FakeRepository, client: FakeClient) {
+function coordinator(
+  repository: FakeRepository,
+  client: FakeClient,
+  previewUrlConfig: PreviewUrlConfig = { baseDomain: "preview.example.test", scheme: "https" },
+) {
   return new GitHubCheckRunCoordinator({
     repository,
     client,
-    previewUrlConfig: { baseDomain: "preview.example.test", scheme: "https" },
+    previewUrlConfig,
     consumerName: "worker:github-checks",
   });
 }
@@ -190,6 +195,25 @@ describe("GitHubCheckRunCoordinator", () => {
     );
     expect(client.updates[0]).toMatchObject({ status: "completed", conclusion: "failure" });
     expect(client.updates[0]?.summary).toContain("BUILD_FAILED");
+  });
+
+  it("publishes the local Gateway port without changing the route hostname", async () => {
+    const repository = new FakeRepository();
+    const client = new FakeClient();
+
+    await coordinator(repository, client, {
+      baseDomain: "preview.localhost",
+      scheme: "http",
+      localPort: 18080,
+    }).process(event());
+
+    const expectedUrl =
+      "http://preview-22222222-2222-4222-8222-222222222222.preview.localhost:18080/";
+    expect(client.updates[0]?.summary).toContain(expectedUrl);
+    expect(client.updates[0]?.detailsUrl).toBe(expectedUrl);
+    expect(client.updates[0]?.summary).toContain(
+      "preview-22222222-2222-4222-8222-222222222222.preview.localhost:18080",
+    );
   });
 
   it("redacts credential-shaped failure text before Check Run output", async () => {

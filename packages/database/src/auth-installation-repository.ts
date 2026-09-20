@@ -324,6 +324,15 @@ export class AuthInstallationRepository {
     });
     return row ? toInstallation(row) : null;
   }
+
+  /** Returns only installations claimed by the authenticated owner. */
+  async listInstallations(ownerId: string): Promise<InstallationRecord[]> {
+    const rows = await this.prisma.installation.findMany({
+      where: { ownerId },
+      orderBy: [{ accountLogin: "asc" }, { githubInstallationId: "asc" }],
+    });
+    return rows.map(toInstallation);
+  }
 }
 
 export function hashOpaqueValue(value: string): string {

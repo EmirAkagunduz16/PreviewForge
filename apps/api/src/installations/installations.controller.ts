@@ -1,5 +1,6 @@
 import { Controller, Get, Inject, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
+import { githubInstallationProjectionSchema } from "@previewforge/contracts";
 import type { Request, Response } from "express";
 // biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { AuthService, OAUTH_BINDING_COOKIE, SESSION_COOKIE } from "../auth/auth.service.js";
@@ -13,6 +14,22 @@ export class InstallationsController {
   private readonly request!: RequestWithResponse;
 
   constructor(private readonly auth: AuthService) {}
+
+  @Get()
+  async list() {
+    const installations = await this.auth.listInstallations(
+      parseCookie(this.request.headers.cookie, SESSION_COOKIE),
+    );
+    return {
+      items: installations.map((installation) =>
+        githubInstallationProjectionSchema.parse({
+          id: installation.githubInstallationId,
+          accountLogin: installation.accountLogin,
+          accountType: installation.accountType,
+        }),
+      ),
+    };
+  }
 
   @Get("start")
   async start(): Promise<void> {

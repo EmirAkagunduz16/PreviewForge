@@ -1,0 +1,19 @@
+{
+  "action": "closed",
+  "number": 9,
+  "installation": {
+    "id": 1900009
+  },
+  "repository": {
+    "id": 2900009,
+    "full_name": "previewforge/m9-fixtures"
+  },
+  "pull_request": {
+    "id": 3900009,
+    "number": 9,
+    "head": {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "updated_at": "2026-09-18T09:02:00.000Z"
+  }
+}

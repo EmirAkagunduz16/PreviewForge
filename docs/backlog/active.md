@@ -1,43 +1,89 @@
 # Active backlog
 
-M8 is the active local-hardening milestone. The planning gate is recorded in
-the [M8 execution plan](../plans/m8-hardening-cloud-demo.md). AWS/EKS/ECR is
-explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
+M8 local hardening is complete. M9 local product experience is active under
+the [M9 execution plan](../plans/m9-local-product-experience.md). Its planning
+gate is archived; every unfinished implementation and acceptance slice remains
+below. AWS/EKS/ECR is re-sequenced as blocked M10 work and is not an M9
+dependency.
 
 ~~~yaml
-- id: M8-E2E-FAULTS
-  status: needs-review
-  title: Prove the local lifecycle with failure injection
+- id: M9-LOCAL-RUNTIME
+  status: in-progress
+  title: Start, inspect, and stop the complete owned local runtime
   owner: PreviewForge delivery
-  depends_on: [M8-FIXTURES]
-  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-E2E-FAULTS
-  owned_paths: [apps/api/src/m8.integration.test.ts, apps/worker/src/m8.acceptance.test.ts, apps/worker/src/m8-faults/, apps/api/src/test-support/m8/]
-  verification_command: pnpm --filter @previewforge/api exec vitest run src/m8.integration.test.ts && pnpm --filter @previewforge/worker exec vitest run src/m8.acceptance.test.ts --no-file-parallelism
-  next_action: restore a local rootless BuildKit runtime and rerun the complete M8 gate before archiving this infrastructure-dependent item
-  acceptance: durable state, external side effects, redaction, stale-SHA fencing, idempotency, and cleanup remain correct after injected faults and restart
-  evidence: Direct API 1 file/2 tests and worker 1 file/6 tests passed against local PostgreSQL 18.1, Kafka 4.3.1, and a real HTTP Check Run fixture. The final local runner also passed the available API/worker fault matrix, restore/outbox drill, and real kind/Envoy M5 acceptance (1 file/3 tests). Covered raw-body HMAC, duplicate/reordered/stale webhook delivery, before-outbox rollback, outbox publish-before-mark crash, worker offset redelivery, stale-SHA supersession, durable retry, lost Check Run create recovery, redaction, and interrupted cleanup. The local host has no buildkitd/buildctl or BuildKit socket, so the rootless BuildKit acceptance boundary remains unclaimed; prior hosted M4 evidence is not substituted for this local gate.
-  evidence_commit: 7d7b609
+  depends_on: [M9-PLAN]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M9-LOCAL-RUNTIME
+  owned_paths: [scripts/local/, scripts/local-infra.mjs, scripts/kubernetes/, infrastructure/local/compose.yaml, docs/operations/local-development.md]
+  verification_command: focused script tests; pnpm local:up; pnpm local:status; repeated pnpm local:up; pnpm local:down; exact residue inspection
+  next_action: from the authenticated host terminal install the pinned BuildKit/registry binaries, stage/start the rootless stack, then run local:up/status/repeated-start/local:down with exact process/socket/container/cluster residue inspection
+  blocker: the desktop-linux dependency stack and host rootless prerequisites are ready, but the accepted BuildKit socket is unavailable; root-owned binary install/staging cannot run inside the Codex shell's no-new-privileges boundary
+  acceptance: the documented command reaches ready without hidden steps, exposes child failures, is idempotent, and tears down only exact PreviewForge-owned resources with zero M9 process/socket/temp residue
+  evidence: supervisor tests pass; disposable PostgreSQL/Kafka/registry stack, migrations, full root integration, and zero database/registry/Kafka test residue pass on override ports; host M4 provisioning now passes, while pinned BuildKit/registry install, rootless socket, and complete runtime drill remain unclaimed
+  evidence_commit: not-run
 
-- id: M8-LOCAL-ACCEPTANCE
-  status: needs-review
-  title: Run the local hardening acceptance gate
+- id: M9-ONBOARDING
+  status: in-progress
+  title: Complete browser GitHub installation and repository import
   owner: PreviewForge delivery
-  depends_on: [M8-FIXTURES, M8-E2E-FAULTS, M8-OBS]
-  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-LOCAL-ACCEPTANCE
-  owned_paths: [scripts/m8/run-local-acceptance.mjs]
-  verification_command: node scripts/m8/run-local-acceptance.mjs; pnpm check; pnpm docs:check; git diff --check
-  next_action: rerun this gate after a local rootless BuildKit runtime and record the final zero-residue result before archiving
-  acceptance: local lifecycle, failure injection, observability, restore, and teardown all pass with direct test discovery/counts before cloud work
-  evidence: The runner completed runtime identity checks, API 2/2 M8 tests, worker 6/6 M8 tests, the restore/outbox drill (seed 2 rows, repeat 2 rows, restore 2 rows with 2 pending outbox rows, relay/replay 2/2, pending 2→0), telemetry/dashboard checks, and real M5 kind/Envoy acceptance 3/3. The final repository `pnpm check` passed after formatting, with docs:check and whitespace checks clean. The gate is intentionally not archived because the local host lacks buildkitd/buildctl and no BuildKit socket; the runner therefore does not claim the required rootless BuildKit scenario.
-  evidence_commit: 578c160
+  depends_on: [M9-PLAN]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M9-ONBOARDING
+  owned_paths: [apps/web/app/, apps/api/src/auth/auth.service.ts, apps/api/src/auth/auth.types.ts, apps/api/src/api-exception.filter.ts, apps/api/src/installations/, apps/api/src/projects/, packages/database/src/auth-installation-repository.ts, packages/database/src/project-repository.ts, packages/contracts/src/github.ts]
+  verification_command: focused web/API tests; direct HTTP/PostgreSQL integration; controlled-GitHub browser acceptance
+  next_action: run direct HTTP/PostgreSQL and controlled-GitHub browser acceptance after the local dependencies and fixture path are available
+  blocker: real acceptance needs PostgreSQL plus the controlled GitHub fixture/browser path; no completion claim from unit/build checks alone
+  acceptance: an authenticated owner installs or selects the GitHub App, discovers and imports an authorized repository without copied IDs, sees actionable safe errors, and cannot observe another owner's installation or project
+  evidence: owner-scoped installation endpoint, safe import error codes, install CTA, repository picker, import form, and distinct auth/offline/setup/permission/validation UI implemented; focused API/web tests and builds pass
+  evidence_commit: not-run
 
-- id: M9-CLOUD-DEMO
+- id: M9-LOCAL-ROUTING
+  status: in-progress
+  title: Emit clickable local preview URLs through Envoy Gateway
+  owner: PreviewForge delivery
+  depends_on: [M9-PLAN]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M9-LOCAL-ROUTING
+  owned_paths: [packages/contracts/src/preview-url.ts, packages/contracts/test/preview-url.test.ts, apps/worker/src/preview-url.ts, apps/worker/src/preview-url.test.ts, apps/worker/src/github-checks/, apps/api/src/app.module.ts, apps/api/src/dashboard/dashboard.service.ts, apps/api/src/dashboard/dashboard.service.test.ts, apps/web/app/page.tsx, docs/infrastructure/m5-kubernetes.md]
+  verification_command: focused preview URL tests; real kind/Envoy routing acceptance; browser navigation to emitted URL
+  next_action: run real kind/Envoy/browser routing acceptance after the local runtime prerequisites are restored
+  blocker: implementation checkpoint is complete; real routing acceptance awaits the M9-LOCAL-RUNTIME host prerequisites
+  acceptance: the emitted dashboard and GitHub Check URL is directly clickable at the configured loopback Gateway port, routes only the matching host, and does not weaken production URL validation
+  evidence: shared URL contract, worker Check output, API/dashboard projections, and READY dashboard link implemented; focused checks pass; real kind/Envoy/browser acceptance remains pending
+  evidence_commit: not-run
+
+- id: M9-LOCAL-DEMO
+  status: in-progress
+  title: Prove the complete local user journey
+  owner: PreviewForge delivery
+  depends_on: [M9-LOCAL-RUNTIME, M9-ONBOARDING, M9-LOCAL-ROUTING]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M9-LOCAL-DEMO
+  owned_paths: [fixtures/m9/, scripts/m9/, docs/operations/local-github-app.md]
+  verification_command: direct M9 browser/runtime acceptance against controlled GitHub fixtures and real disposable local dependencies
+  next_action: execute the controlled fixture journey through browser/API/worker/runtime once the three foundation runtime gates are available; inspect exact residue and rerun cleanly
+  blocker: implementation can proceed with credential-free fixtures; real browser/runtime acceptance still waits for M9-LOCAL-RUNTIME, M9-ONBOARDING, and M9-LOCAL-ROUTING
+  acceptance: the complete browser journey passes with duplicate/reordered delivery safety, stale-SHA fencing, immutable digest routing, redaction, repeated close cleanup, rerun safety, and zero owned residue
+  evidence: deterministic M9 manifest/source, loopback GitHub OAuth/App/repository/source/Check fixture, and signed webhook journey runner implemented; manifest scan and endpoint smoke checks pass; full browser/runtime acceptance remains unclaimed
+  evidence_commit: not-run
+
+- id: M9-ACCEPTANCE
+  status: queued
+  title: Close M9 local product experience with fresh evidence
+  owner: PreviewForge delivery
+  depends_on: [M9-LOCAL-DEMO]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M9-ACCEPTANCE
+  owned_paths: [docs/reports/, docs/reports/index.md, docs/backlog/active.md, docs/backlog/archive.md, docs/delivery/roadmap.md, docs/knowledge/previewforge-memory.md, README.md]
+  verification_command: pnpm check; direct M9 acceptance; pnpm docs:check; git diff --check; exact post-teardown residue inspection
+  next_action: keep active until every M9 slice passes root verification, fault sensitivity, second review, final documentation agreement, and zero-residue inspection
+  blocker: waiting for M9-LOCAL-DEMO
+  acceptance: every M9 exit item has fresh final-tree evidence, completed items are archived, no M9 entry remains active, and blocked M10 cloud work remains untouched
+  evidence: not-run
+  evidence_commit: not-run
+
+- id: M10-CLOUD-DEMO
   status: blocked
   title: Deploy the deferred demo to EKS and ECR
   owner: PreviewForge delivery
-  depends_on: [M8-LOCAL-ACCEPTANCE, explicit AWS budget approval]
-  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M9-CLOUD-DEMO
-  owned_paths: [infrastructure/eks/, scripts/m8/cloud/, docs/infrastructure/m8-eks-ecr-demo.md, .github/workflows/m8-cloud-demo.yml]
+  depends_on: [M9-ACCEPTANCE, explicit AWS budget approval]
+  acceptance_ref: docs/plans/m9-local-product-experience.md#M10-CLOUD-DEMO
+  owned_paths: [infrastructure/eks/, scripts/m10/cloud/, docs/infrastructure/m10-eks-ecr-demo.md, .github/workflows/m10-cloud-demo.yml]
   verification_command: not-run — AWS explicitly deferred
   next_action: obtain explicit maximum spend, billing alert, disposable account/region, and destroy-procedure approval before any AWS preflight or provisioning
   blocker: the user's AWS Free Tier is exhausted and no unapproved cloud spend is authorized
@@ -45,16 +91,4 @@ explicitly deferred to a blocked M9 item; no cloud mutation is part of M8.
   evidence: blocked by cost boundary; no AWS calls made
   evidence_commit: not-run
 
-- id: M8-ACCEPTANCE
-  status: needs-review
-  title: Close M8 local hardening with evidence
-  owner: PreviewForge delivery
-  depends_on: [M8-LOCAL-ACCEPTANCE]
-  acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-ACCEPTANCE
-  owned_paths: [docs/reports/session-2026-09-17-m8-acceptance.md, docs/reports/index.md, docs/backlog/active.md, docs/backlog/archive.md, docs/knowledge/previewforge-memory.md]
-  verification_command: pnpm check; pnpm docs:check; git diff --check; node scripts/m8/run-local-acceptance.mjs; read-only residue/process inspection
-  next_action: keep the canonical report and local gate open until the missing BuildKit prerequisite is restored; M9 remains blocked and untouched
-  acceptance: final docs, local runtime evidence, security checks, dashboard/trace observations, restore result, teardown, and deferred M9 blocker agree without unverified cloud claims
-  evidence: Canonical report: docs/reports/session-2026-09-17-m8-acceptance.md. It records the completed local implementation slices and available-boundary acceptance, the exact BuildKit gap, teardown evidence, and the explicit no-AWS boundary.
-  evidence_commit: 87530bf
 ~~~

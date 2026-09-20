@@ -62,6 +62,7 @@ export type AuthRepository = Pick<
   | "revokeSession"
   | "getCredential"
   | "claimInstallation"
+  | "listInstallations"
 >;
 
 export type { AuthUserRecord, InstallationRecord };

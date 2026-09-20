@@ -50,8 +50,27 @@ if [[ -z "$service_name" ]]; then
   exit 1
 fi
 
+# The Service can be created before the Envoy data-plane Pod has a ready
+# endpoint. Starting port-forward at that point exits immediately with a
+# misleading connection error, so wait for a ready address before exec'ing the
+# long-lived child that the local supervisor owns.
+service_resource="${service_name#*/}"
+ready_endpoints=""
+while (( SECONDS < deadline )); do
+  ready_endpoints="$(kubectl "${KUBECTL_ARGS[@]}" -n "$ENVOY_NAMESPACE" get endpoints "$service_resource" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ -n "$ready_endpoints" ]]; then
+    break
+  fi
+  sleep 2
+done
+
+if [[ -z "$ready_endpoints" ]]; then
+  echo "Envoy data-plane Service ${service_name} has no ready endpoint" >&2
+  exit 1
+fi
+
 echo "Forwarding ${service_name} in ${ENVOY_NAMESPACE} to http://127.0.0.1:${LOCAL_PORT}"
 echo "Use the preview HTTPRoute hostname in the Host header; for example:"
-echo "  curl --fail --silent --show-error -H 'Host: preview-<environment-id>.previewforge.local' http://127.0.0.1:${LOCAL_PORT}/"
+echo "  curl --fail --silent --show-error -H 'Host: preview-<environment-id>.preview.localhost' http://127.0.0.1:${LOCAL_PORT}/"
 exec kubectl "${KUBECTL_ARGS[@]}" -n "$ENVOY_NAMESPACE" port-forward \
   --address 127.0.0.1 "$service_name" "${LOCAL_PORT}:${REMOTE_PORT}"

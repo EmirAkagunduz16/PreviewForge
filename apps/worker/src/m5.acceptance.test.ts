@@ -556,7 +556,7 @@ async function prewarmPreviewRoute(event: DeploymentRequested): Promise<void> {
 }
 
 function eventHostname(event: DeploymentRequested): string {
-  return `preview-${event.environmentId}.previewforge.local`;
+  return `preview-${event.environmentId}.preview.localhost`;
 }
 
 function renderedHostname(event: DeploymentRequested): string {

@@ -29,6 +29,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       this.logger.event("error", "http.request.failed", {
         requestId: request.requestId,
         statusCode,
+        exceptionType: exception instanceof Error ? exception.name : typeof exception,
       });
     }
 
@@ -51,12 +52,26 @@ export function createErrorEnvelope(
 
   return {
     error: {
-      code: getErrorCode(statusCode),
+      code: isServerError ? getErrorCode(statusCode) : getPublicErrorCode(exception, statusCode),
       message,
       requestId,
       statusCode,
     },
   };
+}
+
+function getPublicErrorCode(exception: unknown, statusCode: number): string {
+  if (exception instanceof HttpException) {
+    const body = exception.getResponse();
+    if (
+      isRecord(body) &&
+      typeof body.code === "string" &&
+      /^[A-Z][A-Z0-9_]{1,63}$/.test(body.code)
+    ) {
+      return body.code;
+    }
+  }
+  return getErrorCode(statusCode);
 }
 
 function getPublicMessage(exception: unknown): string {
@@ -67,6 +82,10 @@ function getPublicMessage(exception: unknown): string {
   const body = exception.getResponse();
   if (typeof body === "string") {
     return body;
+  }
+
+  if (!isRecord(body)) {
+    return exception.message;
   }
 
   if (!("message" in body)) {
@@ -83,4 +102,8 @@ function getPublicMessage(exception: unknown): string {
 
 function getErrorCode(statusCode: number): string {
   return HttpStatus[statusCode]?.toString() ?? "HTTP_ERROR";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

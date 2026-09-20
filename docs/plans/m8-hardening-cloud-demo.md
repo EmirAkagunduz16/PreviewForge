@@ -1,8 +1,9 @@
 # M8 execution plan — local hardening (cloud deferred)
 
-Status: active — local hardening implementation and available-boundary acceptance verified; rootless BuildKit gate needs rerun
+Status: complete — local hardening and rootless BuildKit gate verified on 2026-09-18; cloud work is re-sequenced as blocked M10
+Completion evidence: [M8 local gate report](../reports/session-2026-09-18-m8-local-gate.md) and [backlog archive](../backlog/archive.md)
 Owner: PreviewForge delivery
-Roadmap: [M8 — Local hardening](../delivery/roadmap.md#M8--local-hardening-active--week-8)
+Roadmap: [M8 — Local hardening](../delivery/roadmap.md#M8--local-hardening-complete--week-8)
 Baseline before planning: HEAD 012e28f36058546cc1df7e785797fe8e80e1a634; tree 3c7ecc51e6b31eaa378f6cf4d038c45499f8db27. The protected untracked .codex/ directory is not part of this milestone.
 Sources: [MVP scope](../product/mvp-scope.md), [system design](../architecture/system-design.md), [deployment state machine](../architecture/deployment-state-machine.md), [ADR 0001](../architecture/decisions/0001-modular-control-plane.md), [ADR 0002](../architecture/decisions/0002-postgres-outbox-and-kafka.md), [ADR 0003](../architecture/decisions/0003-gateway-api.md), [ADR 0004](../architecture/decisions/0004-rootless-buildkit.md), [ADR 0005](../architecture/decisions/0005-sse-for-live-output.md), [threat model](../security/threat-model.md), [project memory](../knowledge/previewforge-memory.md), [M7 execution plan](m7-github-feedback-cleanup.md), [M7 integrated acceptance](../reports/session-2026-09-17-m7-acceptance.md), [AWS EKS pricing](https://aws.amazon.com/eks/pricing/), [AWS ECR pricing](https://aws.amazon.com/ecr/pricing/), [AWS Free Tier](https://aws.amazon.com/free/free-tier-faqs/), [AWS VPC pricing](https://aws.amazon.com/vpc/pricing/), [delivery skill](../../.agents/skills/previewforge-delivery/SKILL.md), [milestone orchestrator skill](../../.agents/skills/previewforge-milestone-orchestrator/SKILL.md), [control-plane skill](../../.agents/skills/previewforge-control-plane/SKILL.md), and [Kubernetes skill](../../.agents/skills/previewforge-kubernetes/SKILL.md).
 Planning gate: M8-PLAN is complete for the revised local-only scope when this contract, the ownership ledger, the deferred-cloud blocker, the acceptance matrix, and the exit checklist are recorded. Product implementation begins with M8-FIXTURES.
@@ -33,13 +34,14 @@ multi-tenancy, Redis, managed database/Kafka provisioning, AWS deployment, or
 a production RPO/RTO/SLO commitment. EKS/ECR is a separately blocked future
 milestone, not an M8 exit criterion.
 
-Current evidence closes the fixtures, backup/restore, observability, direct
-failure-matrix, and real kind/Envoy acceptance slices. The integrated local
-runner and repository checks pass for the available runtime boundaries, but
-this host currently has no `buildkitd`, `buildctl`, or BuildKit socket. The
-rootless BuildKit portion of M8-LOCAL-ACCEPTANCE is therefore deliberately
-left open; prior hosted M4 evidence is recorded but is not relabeled as fresh
-local M8 evidence.
+Current evidence closes every M8 local slice. On 2026-09-18 the integrated
+runner found a live rootless BuildKit v0.33.0 worker and expected Unix socket,
+then passed the API/worker failure matrices, restore/outbox drill,
+observability checks, real kind/Envoy acceptance, repository-wide `pnpm check`,
+and whitespace validation. Exact M8 consumer groups, probe rows, processes,
+observability resources, and temporary runtime residue were removed after the
+run. Prior hosted M4 evidence remains separately labeled; it is not used as a
+substitute for this fresh local result.
 
 ## Locked boundary and operating decisions
 
@@ -86,7 +88,7 @@ local M8 evidence.
   digest, Gateway, and real CNI NetworkPolicy claims are not inferred from
   local kind acceptance.
 
-## Deferred cloud track — M9-CLOUD-DEMO
+## Deferred cloud track — M10-CLOUD-DEMO
 
 The cloud track is intentionally blocked and is not part of the M8 local exit.
 This is a cost boundary, not an implementation failure.
@@ -99,7 +101,7 @@ This is a cost boundary, not an implementation failure.
   free allowance. An exhausted or expired account Free Tier must be treated as
   pay-as-you-go; it is not safe to assume EKS, ECR, networking, or telemetry
   will be free.
-- M9-CLOUD-DEMO is unblocked only after the user explicitly supplies a
+- M10-CLOUD-DEMO is unblocked only after the user explicitly supplies a
   maximum spend and approves the AWS account/region, budget alert, resource
   lifetime, and destroy command. Until then, no AWS credentials are requested,
   no account is inspected, and no cloud resource is created.
@@ -109,7 +111,7 @@ This is a cost boundary, not an implementation failure.
   close smoke flow; and tear down every disposable cloud resource.
 
 The exact future unblock action is: obtain explicit budget approval, then
-create a separate M9 cloud plan with a cost cap and a read-only preflight
+create a separate M10 cloud plan with a cost cap and a read-only preflight
 before any provisioning command.
 
 ## Baseline and sequential ownership ledger
@@ -189,20 +191,20 @@ M8-LOCAL-ACCEPTANCE:
 M8-ACCEPTANCE:
   depends_on: [M8-LOCAL-ACCEPTANCE]
   owned:
-    - docs/reports/session-2026-09-17-m8-acceptance.md
+    - docs/reports/session-2026-09-18-m8-local-gate.md
     - docs/reports/index.md
     - docs/backlog/active.md
     - docs/backlog/archive.md
     - docs/knowledge/previewforge-memory.md
 
-M9-CLOUD-DEMO:
+M10-CLOUD-DEMO:
   status: blocked
   depends_on: [M8-LOCAL-ACCEPTANCE, explicit AWS budget approval]
   owned:
     - infrastructure/eks/
-    - scripts/m8/cloud/
-    - docs/infrastructure/m8-eks-ecr-demo.md
-    - .github/workflows/m8-cloud-demo.yml
+    - scripts/m10/cloud/
+    - docs/infrastructure/m10-eks-ecr-demo.md
+    - .github/workflows/m10-cloud-demo.yml
 ~~~
 
 No slice may edit another slice's owned path. Shared package manifests,
@@ -220,7 +222,7 @@ runtime, or a broader security permission.
   ledger, deferred cloud blocker, runtime acceptance matrix, and local
   milestone exit criteria before product implementation changes.
 - Acceptance: this plan exists; active backlog contains every unfinished M8
-  slice plus the explicitly blocked M9 cloud item; the planning item is
+  slice plus the explicitly blocked cloud item; the planning item is
   archived with evidence; the roadmap and README still agree that M8 is the
   sole active milestone.
 - Verification: pnpm docs:check and git diff --check.
@@ -323,7 +325,7 @@ runtime, or a broader security permission.
   M8-E2E-FAULTS after final integration and prove the restored tree passes
   again. A mock-only or manifest-only result does not close this gate.
 
-### M9-CLOUD-DEMO (deferred)
+### M10-CLOUD-DEMO (deferred)
 
 - Status: blocked by the user's no-unapproved-AWS-spend constraint.
 - Dependency: M8-LOCAL-ACCEPTANCE plus explicit budget, billing alert,
@@ -374,34 +376,34 @@ runtime, or a broader security permission.
 | M8-E2E-FAULTS | A full lifecycle appears green while stale work publishes, duplicate delivery creates side effects, or a crash loses durable intent. | Drive open, synchronize race, failure, retry, ready, close, duplicate/reordered delivery, and each listed crash window. | PostgreSQL state, outbox/Kafka facts, Check Run result, immutable digest, Gateway HTTP response, and cleanup are consistent after restart; secrets stay absent. | Remove desired-SHA, durable idempotency, or ownership guard and the direct real-boundary test fails before restoration. | API, worker, disposable PostgreSQL/Kafka, rootless BuildKit, registry, kind/Envoy Gateway, controlled GitHub fixture. |
 | M8-OBS | Operators cannot see queue pressure/failure or traces cross the async boundary, or telemetry leaks sensitive/high-cardinality data. | Run the real lifecycle and injected failures; scrape metrics, query traces, and load provisioned dashboards. | Expected bounded-label samples, linked HTTP-to-worker spans, non-empty dashboard panels, redacted logs, and no raw payload/secret/high-cardinality labels. | Remove a required counter or Kafka trace propagation and the direct metric/trace oracle fails. | API/worker, Prometheus-compatible scraper, OpenTelemetry collector, trace backend, Grafana dashboards. |
 | M8-LOCAL-ACCEPTANCE | Unit or fake-fixture success hides a broken integrated lifecycle, restore path, observability path, or residue leak. | Run the complete local command sequence twice where applicable from disposable runtime identities, then inspect state and processes without contacting AWS. | All required scenarios pass with recorded discovery/counts, restore is usable, dashboards contain real data, and local residue is zero or pre-existing and explained. | Re-run the targeted adversarial mutation after integration; the restored correct tree passes and the mutation fails. | Real local PostgreSQL/Kafka/BuildKit/registry/kind/Envoy/API/worker plus telemetry and controlled GitHub fixture. |
-| M9-CLOUD-DEMO (deferred) | Cloud IAM/RBAC or CNI is too broad/unenforced, an ECR tag is mutable, or the cloud demo passes only because local state is reused. | After explicit budget approval, deploy to one disposable EKS/ECR environment and drive the same fixture scenarios. | ECR digest is deployed; Gateway returns the expected response; negative RBAC checks deny; real CNI probes block forbidden paths; close removes owned preview; telemetry and teardown are observed. | Remove NetworkPolicy or worker RBAC guard in a disposable cloud check and its direct probe fails. | One explicitly approved AWS account/region, EKS, ECR, conformant Gateway controller, real CNI, approved PostgreSQL/Kafka/BuildKit, API, worker. |
-| M8-ACCEPTANCE | Local delivery is declared complete without fresh evidence, a clean handoff, or an explicit record that cloud is deferred. | Review the final report, changed files, backlog/archive state, local runtime residue, and all critical commands after the last edit. | Final report and project docs agree; exact local evidence is reproducible; no completed item remains active; M9 cloud remains blocked and no unverified cloud claim is labeled passed. | Delete or invalidate one final local evidence source and the closure checklist remains incomplete until rerun. | Repository, local runtime, and read-only local residue inspection. |
+| M10-CLOUD-DEMO (deferred) | Cloud IAM/RBAC or CNI is too broad/unenforced, an ECR tag is mutable, or the cloud demo passes only because local state is reused. | After explicit budget approval, deploy to one disposable EKS/ECR environment and drive the same fixture scenarios. | ECR digest is deployed; Gateway returns the expected response; negative RBAC checks deny; real CNI probes block forbidden paths; close removes owned preview; telemetry and teardown are observed. | Remove NetworkPolicy or worker RBAC guard in a disposable cloud check and its direct probe fails. | One explicitly approved AWS account/region, EKS, ECR, conformant Gateway controller, real CNI, approved PostgreSQL/Kafka/BuildKit, API, worker. |
+| M8-ACCEPTANCE | Local delivery is declared complete without fresh evidence, a clean handoff, or an explicit record that cloud is deferred. | Review the final report, changed files, backlog/archive state, local runtime residue, and all critical commands after the last edit. | Final report and project docs agree; exact local evidence is reproducible; no completed item remains active; M10 cloud remains blocked and no unverified cloud claim is labeled passed. | Delete or invalidate one final local evidence source and the closure checklist remains incomplete until rerun. | Repository, local runtime, and read-only local residue inspection. |
 
 ## Exit checklist
 
 - [x] M8-FIXTURES is repeatable, synthetic, ownership-safe, and its PostgreSQL
       restore/outbox replay drill is recorded.
-- [ ] M8-E2E-FAULTS proves open, synchronize supersession, failure, retry,
+- [x] M8-E2E-FAULTS proves open, synchronize supersession, failure, retry,
       READY, close cleanup, duplicate delivery, and crash-window recovery on
       real local dependencies.
 - [x] M8-OBS exposes safe metrics, correlated traces across Kafka, and
       provisioned dashboards populated by a real acceptance run.
-- [ ] M8-LOCAL-ACCEPTANCE passes after the final implementation changes with
+- [x] M8-LOCAL-ACCEPTANCE passes after the final implementation changes with
       direct test discovery/counts, fault-sensitivity evidence, and zero
       disposable residue.
 - [x] M8 has no AWS dependency or cloud spend; no AWS resource is created or
       inspected during local hardening.
-- [x] M9-CLOUD-DEMO remains blocked until explicit budget, billing alert,
+- [x] M10-CLOUD-DEMO remains blocked until explicit budget, billing alert,
       disposable account/region, and destroy-procedure approval are recorded.
 - [x] No platform, GitHub, registry, database, Kafka, or Kubernetes credential
       enters a build context, image layer, event payload, API response, log,
       metric label, trace attribute, or preview Pod.
 - [x] No production/shared target is used for destructive, concurrency,
       restore, or fault-injection tests.
-- [ ] Final report, active/archive backlog, roadmap, README, plan, reports
-      index, and project knowledge agree; any VictusOS sync is pending until
-      the canonical project report exists.
-- [ ] pnpm check, pnpm docs:check, git diff --check, direct local acceptance,
+- [x] Final report, active/archive backlog, roadmap, README, plan, reports
+      index, and project knowledge agree; the canonical project report exists
+      before the VictusOS sync.
+- [x] pnpm check, pnpm docs:check, git diff --check, direct local acceptance,
       and post-teardown local residue inspection pass after the final change
       set; no cloud smoke is claimed.
 
@@ -413,9 +415,9 @@ status: complete
 acceptance_ref: docs/plans/m8-hardening-cloud-demo.md#M8-PLAN
 owned_paths: [docs/plans/m8-hardening-cloud-demo.md, docs/backlog/active.md, docs/backlog/archive.md]
 verification_command: pnpm docs:check; git diff --check
-next_action: resume the local acceptance gate after a local rootless BuildKit runtime is available; M9 remains blocked
-blocker: none for the local planning gate; M9-CLOUD-DEMO is blocked by the user's no-unapproved-AWS-spend constraint and requires explicit budget approval before any AWS action
-acceptance: the M8 execution contract and every unfinished slice are recorded without claiming product implementation
-evidence: planning-gate commands after the document/backlog update
+next_action: keep M10-CLOUD-DEMO blocked until explicit AWS budget, billing, region, and destroy-procedure approval
+blocker: none for the local planning gate; M10-CLOUD-DEMO is blocked by the user's no-unapproved-AWS-spend constraint and requires explicit budget approval before any AWS action
+acceptance: the M8 execution contract and every local slice are recorded with fresh local acceptance evidence; the cloud track remains explicitly deferred
+evidence: docs/reports/session-2026-09-18-m8-local-gate.md; pnpm docs:check; git diff --check
 evidence_commit: 67b49ac
 ~~~

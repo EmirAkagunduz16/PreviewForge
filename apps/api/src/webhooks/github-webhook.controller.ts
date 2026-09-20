@@ -1,8 +1,7 @@
 import { Controller, Inject, Post, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import type { Request } from "express";
-// Nest uses the runtime constructor token to resolve this controller service.
-// biome-ignore lint/style/useImportType: Nest constructor metadata requires the runtime class.
+// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { GithubWebhookService } from "./github-webhook.service.js";
 import type { RawWebhookRequest, WebhookHeaders } from "./webhook.types.js";
 
