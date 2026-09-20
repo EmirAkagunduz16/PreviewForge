@@ -72,6 +72,9 @@ install -d -o "$runtime_user" -g "$runtime_user" -m 0700 "$state_target"
 # dedicated host identity before validating the boundary for the next launch.
 chown "$runtime_user:$runtime_group" "$state_target"
 chmod 0700 "$state_target"
+# The setgid runtime parent makes newly created directories inherit g+s; clear
+# that inherited bit explicitly so the private state boundary remains 0700.
+chmod g-s "$state_target"
 
 if [[ "$client_group" == "$runtime_group" ]]; then
   chmod 0700 "$root_dir"
