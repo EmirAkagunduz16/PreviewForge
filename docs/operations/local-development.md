@@ -26,7 +26,10 @@ sysctl settings, create a tunnel, or request GitHub/AWS credentials.
 
    ```bash
    registry_gateway="$(docker network inspect kind --format '{{range .IPAM.Config}}{{println .Gateway}}{{end}}' | awk '/^[0-9]+([.][0-9]+){3}$/ { print; exit }')"
-   test -n "$registry_gateway"
+   if [[ -z "$registry_gateway" ]]; then
+     echo 'kind network has no IPv4 gateway' >&2
+     exit 1
+   fi
    sudo env PREVIEWFORGE_BUILDKIT_REGISTRY_HOST="${registry_gateway}:55000" \
      ./scripts/m4-runner/stage-rootless-runtime-config.sh
    ```
