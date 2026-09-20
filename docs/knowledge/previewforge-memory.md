@@ -1,11 +1,11 @@
 ---
 title: PreviewForge project memory
 status: active
-updated: 2026-09-18
+updated: 2026-09-20
 tags:
   - project/previewforge
   - architecture/control-plane
-  - delivery/m8
+  - delivery/m9
 ---
 
 # PreviewForge project memory
@@ -28,7 +28,8 @@ See [MVP scope](../product/mvp-scope.md) and [foundation research](../research/2
 - M5 is complete. Real kind acceptance on 2026-09-16 passed 3/3 against disposable PostgreSQL, registry, kind, and Envoy Gateway; it verified digest-backed routed readiness, failure/supersession outcomes, Secret removal, ownership-safe deletion, and cleanup. See the [canonical M5 session report](../reports/session-2026-09-15-m5-kind-acceptance.md); production worker RBAC and production CNI enforcement remain deferred cloud-demo risks.
 - M6 is complete. Dedicated `previewforge_m6_20260916` acceptance passed API 5 files/6 tests, real rootless BuildKit durable logs 1/1, real kind/Envoy Gateway 1 file/3 tests, and browser owner/history/log refresh/write-only/sign-out checks; final PostgreSQL fixture, managed namespace, BuildKit runtime, and process residue were zero. See the [canonical M6 acceptance report](../reports/session-2026-09-16-m6-acceptance-progress.md), the [M6 Dashboard report](../reports/session-2026-09-16-m6-dashboard.md), and [active backlog](../backlog/active.md).
 - M7 is complete. `M7-CHECKS`, `M7-PR-CLOSE`, `M7-TTL`, and `M7-ORPHAN` are implemented and the consolidated real acceptance verified repeated close, TTL expiry, DB-missing orphan cleanup, stale-SHA supersession, Envoy Gateway routing, wrong-owner safety, and zero M7 residue. See the [M7 integrated acceptance report](../reports/session-2026-09-17-m7-acceptance.md), the [PR-CLOSE report](../reports/session-2026-09-17-m7-pr-close.md), and the [TTL/orphan report](../reports/session-2026-09-17-m7-ttl-orphan.md).
-- M8 local hardening is complete. The 2026-09-18 local gate passed with a real rootless BuildKit v0.33.0 worker/socket, deterministic fixtures and restore/outbox replay, direct failure-injected API/worker tests, bounded metrics/traces, Prometheus/Grafana/Tempo evidence, real kind/Envoy acceptance, repository-wide `pnpm check`, and zero disposable residue after exact cleanup. M9 now turns that system into a locally usable product through one-command runtime orchestration, browser onboarding/import, clickable local routing, and deterministic end-to-end acceptance. AWS EKS/ECR is re-sequenced as blocked M10 work until an approved cost boundary exists. See the [M8 execution plan](../plans/m8-hardening-cloud-demo.md), [M9 execution plan](../plans/m9-local-product-experience.md), [canonical M8 gate report](../reports/session-2026-09-18-m8-local-gate.md), and [active backlog](../backlog/active.md).
+  - M8 local hardening is complete. The 2026-09-18 local gate passed with a real rootless BuildKit v0.33.0 worker/socket, deterministic fixtures and restore/outbox replay, direct failure-injected API/worker tests, bounded metrics/traces, Prometheus/Grafana/Tempo evidence, real kind/Envoy acceptance, repository-wide `pnpm check`, and zero disposable residue after exact cleanup.
+  - M9 local product experience is complete. The 2026-09-20 proof passed one-command runtime start/status/stop, authenticated browser dashboard and preview navigation, real rootless BuildKit push, immutable digest routing through kind/Envoy, duplicate/stale webhook controls, and close cleanup with zero managed namespace and runtime residue. The worker now derives local health checks from the shared preview hostname/port contract when no explicit template is supplied. AWS EKS/ECR remains blocked as M10 until an approved cost boundary exists. See the [M8 gate report](../reports/session-2026-09-18-m8-local-gate.md), [M9 execution plan](../plans/m9-local-product-experience.md), [M9 acceptance report](../reports/session-2026-09-20-m9-local-product.md), and [active backlog](../backlog/active.md).
 - The canonical M4 topology keeps rootless BuildKit and a plain-HTTP registry in one RootlessKit `slirp4netns` namespace, keeps `--disable-host-loopback`, exposes only registry loopback `127.0.0.1:5000`, and reaches BuildKit through a Unix socket. No Docker socket, privileged mode, `apparmor=unconfined` container/runtime flag, BuildKit TCP listener, or global AppArmor/sysctl weakening is accepted. Ubuntu's named per-binary unconfined RootlessKit profile is distinct from those forbidden global/runtime relaxations.
 - PostgreSQL is authoritative. Kafka is an at-least-once transport behind a transactional outbox; Redis is deliberately deferred until a measured need exists.
 - The API remains one modular NestJS application and the worker remains independently scalable; a new network service requires an ADR.
@@ -58,4 +59,4 @@ See [deployment state machine](../architecture/deployment-state-machine.md), [th
 
 ## How to resume
 
-Use [the roadmap](../delivery/roadmap.md) for milestone status and [the active backlog](../backlog/active.md) for the next unfinished action. M3 through M8 are complete; M9 local product experience is active; the M10 cloud demo is deferred and blocked by the explicit AWS cost boundary. Read this file when a durable invariant or decision is needed; it is an index, not a progress log. Update it only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.
+Use [the roadmap](../delivery/roadmap.md) for milestone status and [the active backlog](../backlog/active.md) for the next unfinished action. M3 through M9 are complete; the M10 cloud demo is deferred and blocked by the explicit AWS cost boundary. Read this file when a durable invariant or decision is needed; it is an index, not a progress log. Update it only for durable decisions, verified milestones, or security-relevant lessons, then mirror the durable summary to the linked VictusOS note.

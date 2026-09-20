@@ -6,7 +6,7 @@ The first release supports one GitHub repository, one Dockerfile, one HTTP conta
 
 ## Status
 
-M0 through M8 are complete and archived with evidence. The repository is in M9, the local-product-experience milestone: one-command local runtime, browser onboarding/import, clickable local preview routing, and deterministic end-to-end acceptance. The paid AWS cloud demo is re-sequenced as blocked M10 work. The current unfinished slices and their exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
+M0 through M9 are complete and archived with evidence. M9 delivered the one-command local runtime, browser onboarding/import, clickable local preview routing, and deterministic end-to-end acceptance. The repository is in M10, the deferred AWS cloud demo, which remains blocked by the explicit cost boundary. The current unfinished work and its exact verification state are tracked in [the active backlog](docs/backlog/active.md). The [roadmap](docs/delivery/roadmap.md) is the source of truth for milestone status.
 
 ## Architecture at a glance
 

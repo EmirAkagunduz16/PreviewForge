@@ -35,3 +35,4 @@
 | RPT-2026-09-18-m9-local-routing-checkpoint | session | checkpoint | [M9 local routing implementation checkpoint](session-2026-09-18-m9-local-routing-checkpoint.md) | not yet synced |
 | RPT-2026-09-18-m9-local-demo-fixture-checkpoint | session | checkpoint | [M9 local demo fixture checkpoint](session-2026-09-18-m9-local-demo-fixture-checkpoint.md) | not yet synced |
 | RPT-2026-09-20-m9-implementation-gate | session | checkpoint | [M9 implementation and host gate](session-2026-09-20-m9-implementation-gate.md) | pending |
+| RPT-2026-09-20-m9-local-product | session | verified | [M9 local product acceptance](session-2026-09-20-m9-local-product.md) | pending |

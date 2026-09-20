@@ -53,7 +53,12 @@ import { persistKubernetesFailure } from "./kubernetes/failure-persistence.js";
 import { httpHealthCheck, resolveHealthCheckUrl } from "./kubernetes/rollout.js";
 import { createWorkerTelemetry, DEFAULT_WORKER_OBSERVABILITY_PORT } from "./observability/index.js";
 import { relayOutboxBatch } from "./outbox-relay.js";
-import { loadPreviewUrlConfig, type PreviewUrlConfig, previewHostname } from "./preview-url.js";
+import {
+  loadPreviewUrlConfig,
+  type PreviewUrlConfig,
+  previewHealthCheckUrl,
+  previewHostname,
+} from "./preview-url.js";
 import { loadProjectEnvironment } from "./runtime/project-environment.js";
 import { GitHubInstallationTokenProvider } from "./source/github-installation-token.js";
 import { GitHubSourceClient } from "./source/github-source.js";
@@ -97,6 +102,7 @@ async function main(): Promise<void> {
     ? createBuildAfterClaim({
         config: config.build,
         previewBaseDomain: previewUrlConfig.baseDomain,
+        previewUrlConfig,
         deployments,
         logChunks,
         projects,
@@ -319,6 +325,7 @@ function createCheckRunCoordinator(input: {
 function createBuildAfterClaim(input: {
   config: WorkerBuildConfig;
   previewBaseDomain: string;
+  previewUrlConfig: PreviewUrlConfig;
   deployments: DeploymentRepository;
   logChunks: LogChunkRepository;
   projects: Pick<ProjectRepository, "findBuildById">;
@@ -421,12 +428,18 @@ function createBuildAfterClaim(input: {
             healthPath: project.healthPath,
             previewBaseDomain: input.previewBaseDomain,
             ...(() => {
-              const healthCheckUrl = resolveHealthCheckUrl(
-                process.env.PREVIEWFORGE_HEALTHCHECK_URL_TEMPLATE,
-                previewHostname(event.environmentId, input.previewBaseDomain),
-                project.healthPath,
-              );
-              return healthCheckUrl === undefined ? {} : { healthCheckUrl };
+              const healthCheckUrl =
+                resolveHealthCheckUrl(
+                  process.env.PREVIEWFORGE_HEALTHCHECK_URL_TEMPLATE,
+                  previewHostname(event.environmentId, input.previewBaseDomain),
+                  project.healthPath,
+                ) ??
+                previewHealthCheckUrl(
+                  event.environmentId,
+                  input.previewUrlConfig,
+                  project.healthPath,
+                );
+              return { healthCheckUrl };
             })(),
             ...(rolloutTimeoutMs === undefined ? {} : { rolloutTimeoutMs }),
             ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),

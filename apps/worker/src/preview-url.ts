@@ -3,6 +3,7 @@
 export {
   loadPreviewUrlConfig,
   type PreviewUrlConfig,
+  previewHealthCheckUrl,
   previewHostname,
   previewUrl,
 } from "@previewforge/contracts";

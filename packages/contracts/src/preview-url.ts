@@ -55,6 +55,22 @@ export function previewUrl(environmentId: string, config: PreviewUrlConfig): str
   return `${config.scheme}://${previewHostname(environmentId, config.baseDomain)}${port}/`;
 }
 
+/**
+ * Resolve the worker's default health-check target from the same URL contract
+ * used by the dashboard and the Gateway HTTPRoute. Local previews therefore
+ * keep both the loopback port and the preview hostname (Host header), while a
+ * public deployment uses its configured HTTPS origin.
+ */
+export function previewHealthCheckUrl(
+  environmentId: string,
+  config: PreviewUrlConfig,
+  healthPath: string,
+): string {
+  if (!healthPath.startsWith("/")) throw new Error("healthPath must be an absolute path");
+  const port = config.localPort === undefined ? "" : `:${config.localPort}`;
+  return `${config.scheme}://${previewHostname(environmentId, config.baseDomain)}${port}${healthPath}`;
+}
+
 function parseLocalPort(value: string | undefined): number | undefined {
   const trimmed = value?.trim();
   if (trimmed === undefined || trimmed === "") return undefined;

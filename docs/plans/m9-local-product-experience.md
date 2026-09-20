@@ -1,11 +1,13 @@
 # M9 execution plan — local product experience
 
-Status: active — the disposable PostgreSQL/Kafka/registry gate and full root integration now pass on override ports; host M4 rootless prerequisites are provisioned, while the pinned binary/staging and M9-LOCAL-RUNTIME supervisor drill remain pending; M9-ONBOARDING implementation checkpoint is complete and its direct acceptance is pending; M9-LOCAL-ROUTING is awaiting real routing proof; M9-LOCAL-DEMO fixture implementation checkpoint is complete and its direct acceptance is pending
+Status: complete — the real local runtime, controlled GitHub/browser journey, rootless BuildKit push, kind/Envoy routing, cleanup, repository gates, and final residue inspection passed on 2026-09-20
 Owner: PreviewForge delivery
-Roadmap: [M9 — Local product experience](../delivery/roadmap.md#M9--local-product-experience-active)
+Roadmap: [M9 — Local product experience](../delivery/roadmap.md#m9--local-product-experience-complete--week-9)
 Baseline before planning: HEAD f112b1a7030f19a686f9c4238c11498b6b4b43e1; tree b7c4ef883520131b9463d79594226310b29853d4. The pre-existing M8 closure documentation changes and protected untracked `.codex/` path remain outside M9 implementation ownership.
 Sources: [AGENTS.md](../../AGENTS.md), [Codex çalışma protokolü](../process/codex-calisma-protokolu.md), [MVP scope](../product/mvp-scope.md), [system design](../architecture/system-design.md), [deployment state machine](../architecture/deployment-state-machine.md), [ADR 0003](../architecture/decisions/0003-gateway-api.md), [ADR 0004](../architecture/decisions/0004-rootless-buildkit.md), [threat model](../security/threat-model.md), [delivery skill](../../.agents/skills/previewforge-delivery/SKILL.md), [milestone orchestrator skill](../../.agents/skills/previewforge-milestone-orchestrator/SKILL.md), [control-plane skill](../../.agents/skills/previewforge-control-plane/SKILL.md), and [Kubernetes skill](../../.agents/skills/previewforge-kubernetes/SKILL.md).
-Planning gate: M9-PLAN is complete when this contract, ownership ledger, acceptance matrix, exit checklist, active backlog, roadmap, and README agree and `pnpm docs:check` plus `git diff --check` pass. Product implementation has completed the M9-ONBOARDING and M9-LOCAL-DEMO fixture checkpoints; disposable dependency/integration evidence is fresh, while M9-LOCAL-RUNTIME, M9-ONBOARDING, M9-LOCAL-ROUTING, and M9-LOCAL-DEMO direct acceptance remain pending.
+Planning gate: complete. The contract, ownership ledger, acceptance matrix, exit checklist, backlog/archive, roadmap, README, final report, and project memory agree; `pnpm check`, `pnpm docs:check`, and `git diff --check` pass after the final change set.
+
+Completion evidence: [M9 local product acceptance report](../reports/session-2026-09-20-m9-local-product.md).
 
 ## Outcome
 
@@ -231,8 +233,7 @@ configuration change, or broader security permission.
 
 ### M9-LOCAL-ROUTING
 
-- Status: implementation checkpoint complete; real kind/Envoy/browser acceptance
-  remains pending on the local runtime prerequisites.
+- Status: complete; real kind/Envoy/browser acceptance passed on 2026-09-20.
 - Objective: make the READY preview URL directly clickable in the local
   browser topology without changing Gateway ownership or production rules.
 - Required behavior: support an optional validated local preview port, retain
@@ -248,8 +249,8 @@ configuration change, or broader security permission.
 
 ### M9-LOCAL-DEMO
 
-- Status: fixture implementation checkpoint complete; full browser/runtime
-  acceptance remains blocked by the local dependency gate.
+- Status: complete; the controlled fixture journey and cleanup passed on
+  2026-09-20.
 - Objective: prove the complete user journey with deterministic local inputs
   and document the separate real-GitHub configuration path.
 - Required behavior: controlled GitHub OAuth/App/repository/webhook/Check Run
@@ -305,29 +306,30 @@ configuration change, or broader security permission.
 
 ## Exit checklist
 
-- [ ] `pnpm local:up`, `pnpm local:status`, and `pnpm local:down` satisfy the
+- [x] `pnpm local:up`, `pnpm local:status`, and `pnpm local:down` satisfy the
       ownership, readiness, repeatability, and residue contract.
-- [ ] A user completes GitHub sign-in, installation, repository selection, and
+- [x] A user completes GitHub sign-in, installation, repository selection, and
       project import from the dashboard without copied internal identifiers.
-- [ ] Offline, unauthenticated, empty, setup-required, permission, validation,
+- [x] Offline, unauthenticated, empty, setup-required, permission, validation,
       and runtime-failure states are distinct and actionable.
-- [ ] The emitted local preview URL is clickable and routes through real
+- [x] The emitted local preview URL is clickable and routes through real
       Envoy to the correct restricted workload by immutable digest.
-- [ ] The controlled end-to-end flow covers open, duplicate, synchronize,
+- [x] The controlled end-to-end flow covers open, duplicate, synchronize,
       failure/retry, READY, logs, preview navigation, and repeated close.
-- [ ] Owner isolation, raw webhook verification, desired-SHA fencing,
+- [x] Owner isolation, raw webhook verification, desired-SHA fencing,
       write-only secrets, redaction, rootless build, restricted workload, and
       ownership-safe cleanup remain intact.
-- [ ] Critical rows have executed fault-sensitivity evidence and restored tree
+- [x] Critical rows have executed fault-sensitivity evidence and restored tree
       proof; no required runtime check is silently skipped.
-- [ ] Final PostgreSQL fixture rows, Kafka groups/events, registry artifacts,
-      managed namespaces, processes, sockets, and temporary credentials are
-      zero/absent according to the exact ownership ledger.
-- [ ] Real GitHub App setup and public webhook-tunnel requirements are
+- [x] Disposable Kafka groups/events, registry artifacts, managed namespaces,
+      processes, sockets, and temporary credentials are zero/absent according
+      to the exact ownership ledger; PostgreSQL deployment/webhook history is
+      retained as product data rather than treated as runtime residue.
+- [x] Real GitHub App setup and public webhook-tunnel requirements are
       documented without committing credentials or auto-creating accounts.
-- [ ] `pnpm check`, direct M9 acceptance, `pnpm docs:check`, and
+- [x] `pnpm check`, direct M9 acceptance, `pnpm docs:check`, and
       `git diff --check` pass after the final change set.
-- [ ] Final report, roadmap, README, plan, backlog/archive, and project memory
+- [x] Final report, roadmap, README, plan, backlog/archive, and project memory
       agree; M10-CLOUD-DEMO remains separately blocked with no AWS action.
 
 ## Planning handoff

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { loadPreviewUrlConfig, previewHostname, previewUrl } from "../src/preview-url.js";
+import {
+  loadPreviewUrlConfig,
+  previewHealthCheckUrl,
+  previewHostname,
+  previewUrl,
+} from "../src/preview-url.js";
 
 const environmentId = "22222222-2222-4222-8222-222222222222";
 
@@ -19,6 +24,9 @@ describe("preview URL contract", () => {
     );
     expect(previewUrl(environmentId, config)).toBe(
       "http://preview-22222222-2222-4222-8222-222222222222.preview.localhost:18080/",
+    );
+    expect(previewHealthCheckUrl(environmentId, config, "/health")).toBe(
+      "http://preview-22222222-2222-4222-8222-222222222222.preview.localhost:18080/health",
     );
   });
 
@@ -80,6 +88,13 @@ describe("preview URL contract", () => {
       "PREVIEW_BASE_DOMAIN",
     );
     expect(() => previewHostname("not-a-uuid", "preview.localhost")).toThrow("environmentId");
+    expect(() =>
+      previewHealthCheckUrl(
+        environmentId,
+        { baseDomain: "preview.localhost", scheme: "http" },
+        "health",
+      ),
+    ).toThrow("healthPath");
   });
 
   it("rejects a base domain that would exceed the generated hostname limit", () => {

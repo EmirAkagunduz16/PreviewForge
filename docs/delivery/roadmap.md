@@ -65,15 +65,15 @@ The plan is milestone-based so each slice has observable acceptance criteria. Ca
 - Acceptance: complete. The 2026-09-18 local gate passed with a real rootless BuildKit v0.33.0 worker/socket, API and worker failure matrices, restore/outbox replay, telemetry and dashboards, real kind/Envoy acceptance, repository-wide checks, and zero disposable residue; see the [M8 local gate report](../reports/session-2026-09-18-m8-local-gate.md).
 - The AWS EKS/ECR demo is explicitly deferred to the blocked M10 cloud track; it is not an M8 dependency or acceptance claim.
 
-## M9 — Local product experience (active)
+## M9 — Local product experience (complete) — week 9
 
 - Provide one observable, ownership-safe command path to start, inspect, and stop the complete local runtime.
 - Complete GitHub App installation discovery, repository selection, project import, and actionable empty/error states in the dashboard.
 - Emit directly clickable local preview URLs through the real kind/Envoy Gateway topology.
 - Prove the browser journey against controlled GitHub fixtures and real disposable PostgreSQL, Kafka, rootless BuildKit, registry, kind, and Envoy dependencies.
-- Acceptance: `pnpm local:up` reaches ready without hidden manual steps; a user completes sign-in/install/import/open/synchronize/failure/retry/READY/log/preview/close from the browser; direct acceptance, repository checks, fault sensitivity, cleanup, and residue inspection pass. See the [M9 execution plan](../plans/m9-local-product-experience.md).
+- Acceptance: complete. The 2026-09-20 local product proof used a real rootless BuildKit worker, local PostgreSQL/Kafka/registry, kind/Envoy, the controlled GitHub fixture, and a browser journey. It verified immutable digest push, READY health through the generated Host, wrong-host rejection, duplicate/stale webhook controls, close cleanup, and zero managed namespace/runtime residue; see the [M9 local product acceptance report](../reports/session-2026-09-20-m9-local-product.md).
 
-## M10 — AWS EKS/ECR cloud demo (deferred / blocked)
+## M10 — AWS EKS/ECR cloud demo (active)
 
 - Status: blocked until an explicit maximum spend, billing alert, disposable account and region, and destroy procedure are approved.
 - No AWS credential, account, preflight, or resource mutation is part of the current local delivery state.
