@@ -74,7 +74,17 @@ if [[ -n "${KUBECONFIG:-}" ]]; then
 fi
 
 kubectl --context "${KUBE_CONTEXT}" cluster-info >/dev/null
-kubectl --context "${KUBE_CONTEXT}" apply --server-side --force-conflicts -f "${ENVOY_INSTALL_URL}"
+if kubectl --context "${KUBE_CONTEXT}" -n envoy-gateway-system get deployment/envoy-gateway >/dev/null 2>&1; then
+  existing_envoy_image="$(kubectl --context "${KUBE_CONTEXT}" -n envoy-gateway-system get \
+    deployment/envoy-gateway -o jsonpath='{.spec.template.spec.containers[*].image}')"
+  if [[ "$existing_envoy_image" != "envoyproxy/gateway:${ENVOY_GATEWAY_VERSION}" ]]; then
+    echo "existing Envoy Gateway image is not ${ENVOY_GATEWAY_VERSION}: ${existing_envoy_image}" >&2
+    exit 1
+  fi
+  echo "Reusing existing Envoy Gateway deployment (${existing_envoy_image})"
+else
+  kubectl --context "${KUBE_CONTEXT}" apply --server-side --force-conflicts -f "${ENVOY_INSTALL_URL}"
+fi
 kubectl --context "${KUBE_CONTEXT}" -n envoy-gateway-system wait --for=condition=Available deployment/envoy-gateway --timeout="${ENVOY_GATEWAY_WAIT_SECONDS}s"
 kubectl --context "${KUBE_CONTEXT}" apply --server-side --force-conflicts -f "${GATEWAY_MANIFEST}"
 kubectl --context "${KUBE_CONTEXT}" wait --for=condition=Accepted gatewayclass/eg --timeout=120s
