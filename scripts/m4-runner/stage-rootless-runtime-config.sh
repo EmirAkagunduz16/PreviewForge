@@ -63,7 +63,15 @@ fi
   echo "RootlessKit state directory must not be a symlink: $state_target" >&2
   exit 1
 }
+if [[ -e "$state_target" && ! -d "$state_target" ]]; then
+  echo "RootlessKit state path is not a directory: $state_target" >&2
+  exit 1
+fi
 install -d -o "$runtime_user" -g "$runtime_user" -m 0700 "$state_target"
+# RootlessKit may remap ownership when its child namespace exits. Reassert the
+# dedicated host identity before validating the boundary for the next launch.
+chown "$runtime_user:$runtime_group" "$state_target"
+chmod 0700 "$state_target"
 
 if [[ "$client_group" == "$runtime_group" ]]; then
   chmod 0700 "$root_dir"
