@@ -1,5 +1,5 @@
 import type { DeploymentRequested } from "@previewforge/contracts";
-import type { ProjectImportRecord } from "@previewforge/database";
+import type { ProjectBuildRecord } from "@previewforge/database";
 
 export type BuildInputConfig = {
   registryHost: string;
@@ -18,10 +18,13 @@ export type ResolvedBuildInput = {
 /** Converts persisted project configuration and a validated event into the narrow build input. */
 export function resolveBuildInput(
   event: DeploymentRequested,
-  project: Pick<ProjectImportRecord, "installationId" | "repositoryFullName" | "dockerfilePath">,
+  project: Pick<
+    ProjectBuildRecord,
+    "githubInstallationId" | "repositoryFullName" | "dockerfilePath"
+  >,
   config: BuildInputConfig,
 ): ResolvedBuildInput {
-  if (project.installationId !== event.installationId) {
+  if (project.githubInstallationId !== event.installationId) {
     throw new Error("Build project installation does not match deployment event");
   }
   if (project.repositoryFullName !== event.repositoryFullName) {

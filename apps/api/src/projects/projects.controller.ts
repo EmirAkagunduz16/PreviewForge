@@ -4,7 +4,6 @@ import type { Request } from "express";
 import { SESSION_COOKIE } from "../auth/auth.service.js";
 import { parseCookie } from "../security/cookies.js";
 import { ProjectImportError } from "./project.errors.js";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { ProjectService } from "./project.service.js";
 
 @Controller({ path: "projects", scope: Scope.REQUEST })
@@ -12,7 +11,8 @@ export class ProjectsController {
   @Inject(REQUEST)
   private readonly request!: Request;
 
-  constructor(private readonly projects: ProjectService) {}
+  @Inject(ProjectService)
+  private readonly projects!: ProjectService;
 
   @Get("repositories")
   listRepositories() {

@@ -20,6 +20,20 @@ sysctl settings, create a tunnel, or request GitHub/AWS credentials.
    If the provisioned setup has a dedicated foreground supervisor command,
    `PREVIEWFORGE_LOCAL_BUILDKIT_COMMAND` may contain that command as a JSON
    string array; otherwise the runtime verifies the already-running socket.
+   The M9 worker pushes to the Compose registry through the kind Docker-network
+   gateway. Stage that endpoint into the rootless BuildKit config before the
+   local runtime starts:
+
+   ```bash
+   registry_gateway="$(docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}')"
+   sudo env PREVIEWFORGE_BUILDKIT_REGISTRY_HOST="${registry_gateway}:55000" \
+     ./scripts/m4-runner/stage-rootless-runtime-config.sh
+   ```
+
+   Restart the dedicated rootless stack after staging. Set
+   `PREVIEWFORGE_REGISTRY_HOST` to the same `host:port` only when the derived
+   gateway is not suitable for the host; `local:up` derives it automatically
+   when the configured value is the default `localhost:55000`.
 4. Confirm the selected project Docker context and host prerequisites:
 
    ```bash
@@ -29,7 +43,8 @@ sysctl settings, create a tunnel, or request GitHub/AWS credentials.
 The runtime uses `PREVIEWFORGE_DOCKER_CONTEXT`, then `DOCKER_CONTEXT`, then
 `default`. It refuses `DOCKER_HOST` overrides. The default local topology uses
 PostgreSQL `localhost:55432`, Kafka `localhost:59092`, registry
-`localhost:55000`, API `localhost:4000`, dashboard `localhost:3000`, and the
+`localhost:55000` for the host port and the kind network gateway for BuildKit
+pushes, API `localhost:4000`, dashboard `localhost:3000`, and the
 Envoy loopback Gateway port `18080`. A READY preview is exposed as
 `http://preview-<environment-id>.preview.localhost:18080/`; the port is only
 the loopback forward and the hostname remains the HTTPRoute identity. The

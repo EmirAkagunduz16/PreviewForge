@@ -12,6 +12,15 @@ export type ProjectImportRecord = {
   healthPath: string;
 };
 
+export type ProjectBuildRecord = {
+  id: string;
+  githubInstallationId: string;
+  repositoryFullName: string;
+  dockerfilePath: string;
+  containerPort: number;
+  healthPath: string;
+};
+
 export type ProjectImportInput = {
   installationId: string;
   ownerId: string;
@@ -38,6 +47,29 @@ export class ProjectRepository {
   async findById(projectId: string): Promise<ProjectImportRecord | null> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     return project === null ? null : toProject(project);
+  }
+
+  async findBuildById(projectId: string): Promise<ProjectBuildRecord | null> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        repositoryFullName: true,
+        dockerfilePath: true,
+        containerPort: true,
+        healthPath: true,
+        installation: { select: { githubInstallationId: true } },
+      },
+    });
+    if (project === null) return null;
+    return {
+      id: project.id,
+      githubInstallationId: project.installation.githubInstallationId.toString(),
+      repositoryFullName: project.repositoryFullName,
+      dockerfilePath: project.dockerfilePath,
+      containerPort: project.containerPort,
+      healthPath: project.healthPath,
+    };
   }
 
   async importProject(input: ProjectImportInput): Promise<ProjectImportRecord> {

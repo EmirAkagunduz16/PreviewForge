@@ -57,6 +57,26 @@ describe("ProjectRepository (PostgreSQL)", () => {
     ).toBe(1);
   });
 
+  it("loads the external installation ID and runtime fields for a build", async () => {
+    const fixture = await createFixture(prisma, userIds);
+    const imported = await repository.importProject(
+      input(fixture, { port: 8080, healthPath: "/health" }),
+    );
+    const installation = await prisma.installation.findUniqueOrThrow({
+      where: { id: fixture.installationId },
+      select: { githubInstallationId: true },
+    });
+
+    await expect(repository.findBuildById(imported.id)).resolves.toEqual({
+      id: imported.id,
+      githubInstallationId: installation.githubInstallationId.toString(),
+      repositoryFullName: "octo/example",
+      dockerfilePath: "Dockerfile",
+      containerPort: 8080,
+      healthPath: "/health",
+    });
+  });
+
   it("rejects a repository identity crossing an owner or installation boundary", async () => {
     const first = await createFixture(prisma, userIds);
     const second = await createFixture(prisma, userIds);

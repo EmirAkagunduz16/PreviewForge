@@ -123,9 +123,16 @@ describe("DeploymentRepository (PostgreSQL)", () => {
     const bearer = "Bearer bearer-secret";
     const apiKey = "api_key=api-secret";
 
-    const result = await repository.transition({
+    await repository.transition({
       deploymentId: fixture.deploymentId,
       expectedStatus: "QUEUED",
+      to: "CLONING",
+      expectedDesiredSha: fixture.commitSha,
+    });
+
+    const result = await repository.transition({
+      deploymentId: fixture.deploymentId,
+      expectedStatus: "CLONING",
       to: "FAILED",
       expectedDesiredSha: fixture.commitSha,
       failure: {
@@ -146,6 +153,11 @@ describe("DeploymentRepository (PostgreSQL)", () => {
       failureStage: "BUILDING",
       failureCode: "BUILD_FAILED",
       failureRetryable: false,
+      leaseToken: null,
+      leaseOwner: null,
+      leaseAcquiredAt: null,
+      leaseRenewedAt: null,
+      leaseExpiresAt: null,
     });
     expect(deployment?.failureMessage).toContain("[REDACTED]");
     expect(deployment?.failureMessage).not.toContain(secret);

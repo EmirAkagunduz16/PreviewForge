@@ -3,7 +3,6 @@ import { REQUEST } from "@nestjs/core";
 import type { Request } from "express";
 import { SESSION_COOKIE } from "../auth/auth.service.js";
 import { parseCookie } from "../security/cookies.js";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { DashboardService } from "./dashboard.service.js";
 
 @Controller({ path: "projects", scope: Scope.REQUEST })
@@ -11,7 +10,8 @@ export class DashboardProjectsController {
   @Inject(REQUEST)
   private readonly request!: Request;
 
-  constructor(private readonly dashboard: DashboardService) {}
+  @Inject(DashboardService)
+  private readonly dashboard!: DashboardService;
 
   @Get()
   listProjects() {
@@ -45,7 +45,8 @@ export class DashboardDeploymentsController {
   @Inject(REQUEST)
   private readonly request!: Request;
 
-  constructor(private readonly dashboard: DashboardService) {}
+  @Inject(DashboardService)
+  private readonly dashboard!: DashboardService;
 
   @Get(":deploymentId")
   getDeployment() {

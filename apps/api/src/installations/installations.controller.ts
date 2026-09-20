@@ -2,7 +2,6 @@ import { Controller, Get, Inject, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import { githubInstallationProjectionSchema } from "@previewforge/contracts";
 import type { Request, Response } from "express";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { AuthService, OAUTH_BINDING_COOKIE, SESSION_COOKIE } from "../auth/auth.service.js";
 import { parseCookie } from "../security/cookies.js";
 
@@ -13,7 +12,10 @@ export class InstallationsController {
   @Inject(REQUEST)
   private readonly request!: RequestWithResponse;
 
-  constructor(private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService) {
+    // Keep AuthService as a runtime import for Nest's design:paramtypes metadata.
+    void AuthService;
+  }
 
   @Get()
   async list() {

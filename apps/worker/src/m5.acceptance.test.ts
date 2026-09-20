@@ -390,7 +390,7 @@ describe("M5 real Kubernetes preview acceptance", () => {
     const buildInput = resolveBuildInput(
       event,
       {
-        installationId: event.installationId,
+        githubInstallationId: event.installationId,
         repositoryFullName: event.repositoryFullName,
         dockerfilePath: "Dockerfile",
       },

@@ -1,4 +1,4 @@
-FROM node:22.12.0-alpine3.22
+FROM node:22-alpine
 
 WORKDIR /app
 COPY server.mjs ./server.mjs

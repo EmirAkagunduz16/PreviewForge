@@ -16,7 +16,15 @@ if [[ ! "$REGISTRY_PORT" =~ ^[0-9]+$ || "$REGISTRY_PORT" -lt 1 || "$REGISTRY_POR
   echo 'PREVIEWFORGE_REGISTRY_LOCAL_PORT must be a numeric port in 1..65535' >&2
   exit 2
 fi
-REGISTRY_HOST="localhost:${REGISTRY_PORT}"
+REGISTRY_HOST="${PREVIEWFORGE_REGISTRY_HOST:-localhost:${REGISTRY_PORT}}"
+if [[ ! "$REGISTRY_HOST" =~ ^[A-Za-z0-9_.-]+:[0-9]+$ ]]; then
+  echo 'PREVIEWFORGE_REGISTRY_HOST must be a host:port value' >&2
+  exit 2
+fi
+if [[ "${REGISTRY_HOST##*:}" != "$REGISTRY_PORT" ]]; then
+  echo "PREVIEWFORGE_REGISTRY_HOST must use the local registry port ${REGISTRY_PORT}" >&2
+  exit 2
+fi
 REGISTRY_ENDPOINT="http://${REGISTRY_CONTAINER}:5000"
 HOSTS_DIR="/etc/containerd/certs.d/${REGISTRY_HOST}"
 HOSTS_ASSET="${REPOSITORY_ROOT}/infrastructure/kubernetes/local-registry-hosts.toml"

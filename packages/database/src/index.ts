@@ -120,7 +120,11 @@ export {
   ProjectEnvironmentLimitError,
   ProjectEnvironmentRepository,
 } from "./project-environment-repository.js";
-export type { ProjectImportInput, ProjectImportRecord } from "./project-repository.js";
+export type {
+  ProjectBuildRecord,
+  ProjectImportInput,
+  ProjectImportRecord,
+} from "./project-repository.js";
 export { ProjectIdentityConflictError, ProjectRepository } from "./project-repository.js";
 export type {
   WebhookFaultStage,

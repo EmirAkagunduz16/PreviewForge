@@ -3,7 +3,6 @@ import { REQUEST } from "@nestjs/core";
 import type { Request } from "express";
 import { SESSION_COOKIE } from "../auth/auth.service.js";
 import { parseCookie } from "../security/cookies.js";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { LiveOutputService } from "./live-output.service.js";
 
 @Controller({ path: "deployments", scope: Scope.REQUEST })
@@ -11,7 +10,8 @@ export class LiveOutputController {
   @Inject(REQUEST)
   private readonly request!: Request;
 
-  constructor(private readonly liveOutput: LiveOutputService) {}
+  @Inject(LiveOutputService)
+  private readonly liveOutput!: LiveOutputService;
 
   @Get(":deploymentId/events")
   events(): Promise<void> {

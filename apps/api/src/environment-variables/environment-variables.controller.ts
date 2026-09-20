@@ -3,13 +3,14 @@ import { REQUEST } from "@nestjs/core";
 import type { Request } from "express";
 import { SESSION_COOKIE } from "../auth/auth.service.js";
 import { parseCookie } from "../security/cookies.js";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { EnvironmentVariablesService } from "./environment-variables.service.js";
 
 @Controller({ path: "projects/:projectId/environment-variables", scope: Scope.REQUEST })
 export class EnvironmentVariablesController {
   @Inject(REQUEST) private readonly request!: Request;
-  constructor(private readonly service: EnvironmentVariablesService) {}
+
+  @Inject(EnvironmentVariablesService)
+  private readonly service!: EnvironmentVariablesService;
 
   @Get()
   list() {

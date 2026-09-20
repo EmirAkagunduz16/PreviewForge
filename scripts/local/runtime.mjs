@@ -245,6 +245,49 @@ export function parseBuildkitAddress(value) {
   return { address: value, socketPath };
 }
 
+export function parseRegistryHost(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_.-]+:[0-9]+$/u.test(value.trim())) {
+    throw new Error("REGISTRY_HOST must be a host:port value");
+  }
+  const [host, rawPort] = value.trim().split(":");
+  const port = Number(rawPort);
+  if (!host || !Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error("REGISTRY_HOST must use a valid host:port value");
+  }
+  return `${host}:${port}`;
+}
+
+function isLoopbackRegistryHost(value, port) {
+  return value === `localhost:${port}` || value === `127.0.0.1:${port}`;
+}
+
+function resolveLocalRegistryHost(environment, port) {
+  const explicit = environment.PREVIEWFORGE_REGISTRY_HOST?.trim();
+  if (explicit) return parseRegistryHost(explicit);
+
+  const configured = environment.REGISTRY_HOST?.trim();
+  if (configured && !isLoopbackRegistryHost(configured, port)) {
+    return parseRegistryHost(configured);
+  }
+
+  let gateway;
+  try {
+    gateway = runSync(
+      "docker",
+      ["network", "inspect", "kind", "--format", "{{(index .IPAM.Config 0).Gateway}}"],
+      { env: environment },
+    ).trim();
+  } catch (error) {
+    throw new Error(
+      `Cannot resolve the kind network gateway for the local registry: ${describeError(error)}`,
+    );
+  }
+  if (!/^[0-9]{1,3}(?:\.[0-9]{1,3}){3}$/u.test(gateway)) {
+    throw new Error(`Kind network gateway is not an IPv4 address: ${gateway || "empty"}`);
+  }
+  return `${gateway}:${port}`;
+}
+
 export function parseManagedCommand(value) {
   if (!value) return undefined;
   let parsed;
@@ -492,6 +535,13 @@ export function environmentForState(environment, state) {
     PREVIEWFORGE_DOCKER_CONTEXT: dockerContext,
     DOCKER_CONTEXT: dockerContext,
     PREVIEWFORGE_KIND_CLUSTER: clusterName,
+    ...(typeof state?.registryHost === "string" && state.registryHost.length > 0
+      ? {
+          PREVIEWFORGE_REGISTRY_HOST: state.registryHost,
+          REGISTRY_HOST: state.registryHost,
+          CONTAINER_REGISTRY: state.registryHost,
+        }
+      : {}),
     ...(typeof state?.kubeconfig === "string" && state.kubeconfig.length > 0
       ? { KUBECONFIG: state.kubeconfig }
       : {}),
@@ -795,6 +845,13 @@ async function up() {
       ["scripts/kubernetes/bootstrap-kind.sh"],
       childEnvironment,
     );
+    const registryHost = resolveLocalRegistryHost(childEnvironment, plan.registryPort);
+    childEnvironment.PREVIEWFORGE_REGISTRY_HOST = registryHost;
+    childEnvironment.REGISTRY_HOST = registryHost;
+    childEnvironment.CONTAINER_REGISTRY = registryHost;
+    state.registryHost = registryHost;
+    await writeState(stateDirectory, state);
+    console.log(`[local] registry endpoint: ${registryHost}`);
     await runStep(
       "connect the local registry to kind",
       "bash",

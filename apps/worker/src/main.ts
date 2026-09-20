@@ -321,7 +321,7 @@ function createBuildAfterClaim(input: {
   previewBaseDomain: string;
   deployments: DeploymentRepository;
   logChunks: LogChunkRepository;
-  projects: ProjectRepository;
+  projects: Pick<ProjectRepository, "findBuildById">;
   projectEnvironments: ProjectEnvironmentRepository;
   cipher?: CredentialCipher;
   kubernetes?: ReturnType<typeof createKubernetesResourceClient>;
@@ -339,7 +339,7 @@ function createBuildAfterClaim(input: {
   const buildkit = new BuildKitAdapter({ address: input.config.buildkitAddress });
 
   return async (event, claim) => {
-    const project = await input.projects.findById(event.projectId);
+    const project = await input.projects.findBuildById(event.projectId);
     if (!project) {
       await input.deployments.transition({
         deploymentId: claim.deploymentId,

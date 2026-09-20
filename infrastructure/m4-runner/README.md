@@ -72,6 +72,18 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    `/var/tmp/previewforge-buildkit/`, are owned by `previewforge-buildkit`, and are mode `0600`.
    The same root-only boundary stages `rootlesskit-state/` for the dedicated user with mode
    `0700`. The checkout is not readable by the restricted daemon user.
+
+   The M4 hosted acceptance keeps its loopback-only registry unchanged. For the M9 local
+   runtime, the worker and kind must share the Compose registry through the kind Docker-network
+   gateway. Add that endpoint to the staged BuildKit config when preparing the host, for example:
+
+   ```bash
+   sudo env PREVIEWFORGE_BUILDKIT_REGISTRY_HOST=172.25.0.1:55000 \
+     ./scripts/m4-runner/stage-rootless-runtime-config.sh
+   ```
+
+   Use the current value from `docker network inspect kind --format '{{(index .IPAM.Config 0).Gateway}}'`
+   instead of assuming `172.25.0.1`.
 7. Start the registry and BuildKit stack as `previewforge-buildkit`. The start script reads only
    the staged runtime files and fails closed when either is missing or has the wrong ownership or
    mode. It executes `/usr/bin/rootlesskit` directly so Ubuntu's packaged per-binary AppArmor

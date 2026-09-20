@@ -16,6 +16,7 @@ buildkit_source="$repo_dir/infrastructure/m4-runner/buildkitd.toml"
 registry_target="$root_dir/registry-config.yml"
 buildkit_target="$root_dir/buildkitd.toml"
 state_target="$root_dir/rootlesskit-state"
+buildkit_registry_host="${PREVIEWFORGE_BUILDKIT_REGISTRY_HOST:-}"
 
 [[ "$client_group" =~ ^[A-Za-z0-9_.-]+$ ]] || {
   echo 'BUILDKIT_CLIENT_GROUP contains unsupported characters' >&2
@@ -37,10 +38,27 @@ getent group "$client_group" >/dev/null || {
   echo "missing canonical BuildKit config: $buildkit_source" >&2
   exit 1
 }
+if [[ -n "$buildkit_registry_host" && ! "$buildkit_registry_host" =~ ^[A-Za-z0-9_.-]+:[0-9]+$ ]]; then
+  echo 'PREVIEWFORGE_BUILDKIT_REGISTRY_HOST must be a host:port value' >&2
+  exit 2
+fi
 
 install -d -o "$runtime_user" -g "$runtime_user" -m 0700 "$root_dir"
 install -o "$runtime_user" -g "$runtime_user" -m 0600 "$registry_source" "$registry_target"
-install -o "$runtime_user" -g "$runtime_user" -m 0600 "$buildkit_source" "$buildkit_target"
+if [[ -z "$buildkit_registry_host" || "$buildkit_registry_host" == '127.0.0.1:5000' ||
+  "$buildkit_registry_host" == 'localhost:5000' ]]; then
+  install -o "$runtime_user" -g "$runtime_user" -m 0600 "$buildkit_source" "$buildkit_target"
+else
+  staged_buildkit_config="$(mktemp)"
+  trap 'rm -f "$staged_buildkit_config"' EXIT
+  cat "$buildkit_source" >"$staged_buildkit_config"
+  if ! grep -Fq "[registry.\"$buildkit_registry_host\"]" "$staged_buildkit_config"; then
+    printf '\n[registry."%s"]\n  http = true\n' "$buildkit_registry_host" >>"$staged_buildkit_config"
+  fi
+  install -o "$runtime_user" -g "$runtime_user" -m 0600 "$staged_buildkit_config" "$buildkit_target"
+  rm -f "$staged_buildkit_config"
+  trap - EXIT
+fi
 [[ ! -L "$state_target" ]] || {
   echo "RootlessKit state directory must not be a symlink: $state_target" >&2
   exit 1

@@ -141,7 +141,16 @@ export async function supersedeStaleDeployment(
         commitSha: input.expectedCommitSha,
         environment: { desiredCommitSha: { not: input.expectedCommitSha } },
       },
-      data: { status: "SUPERSEDED", updatedAt: occurredAt, finishedAt: occurredAt },
+      data: {
+        status: "SUPERSEDED",
+        updatedAt: occurredAt,
+        finishedAt: occurredAt,
+        leaseToken: null,
+        leaseOwner: null,
+        leaseAcquiredAt: null,
+        leaseRenewedAt: null,
+        leaseExpiresAt: null,
+      },
     });
     const row = updated[0];
     if (row) {
@@ -340,6 +349,15 @@ async function updateDeploymentWithGuards(
       // preserve the original completion time for that transition.
       ...(isTerminal(input.to) && input.expectedStatus !== "READY"
         ? { finishedAt: occurredAt }
+        : {}),
+      ...(isTerminal(input.to)
+        ? {
+            leaseToken: null,
+            leaseOwner: null,
+            leaseAcquiredAt: null,
+            leaseRenewedAt: null,
+            leaseExpiresAt: null,
+          }
         : {}),
     },
   });

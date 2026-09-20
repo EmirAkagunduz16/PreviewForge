@@ -1,7 +1,6 @@
 import { Controller, Inject, Post, Scope } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import type { Request } from "express";
-// biome-ignore lint/style/useImportType: Nest decorator metadata requires the runtime service value.
 import { GithubWebhookService } from "./github-webhook.service.js";
 import type { RawWebhookRequest, WebhookHeaders } from "./webhook.types.js";
 
@@ -12,7 +11,8 @@ export class GithubWebhookController {
   @Inject(REQUEST)
   private readonly request!: RawExpressRequest;
 
-  constructor(private readonly service: GithubWebhookService) {}
+  @Inject(GithubWebhookService)
+  private readonly service!: GithubWebhookService;
 
   @Post("github")
   receive() {

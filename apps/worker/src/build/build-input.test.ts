@@ -20,7 +20,7 @@ describe("resolveBuildInput", () => {
       resolveBuildInput(
         event,
         {
-          installationId: "42",
+          githubInstallationId: "42",
           repositoryFullName: "acme/store",
           dockerfilePath: "deploy/Dockerfile",
         },
@@ -42,7 +42,7 @@ describe("resolveBuildInput", () => {
       resolveBuildInput(
         event,
         {
-          installationId: "99",
+          githubInstallationId: "99",
           repositoryFullName: "acme/store",
           dockerfilePath: "Dockerfile",
         },
@@ -53,7 +53,7 @@ describe("resolveBuildInput", () => {
       resolveBuildInput(
         event,
         {
-          installationId: "42",
+          githubInstallationId: "42",
           repositoryFullName: "acme/store",
           dockerfilePath: "../Dockerfile",
         },

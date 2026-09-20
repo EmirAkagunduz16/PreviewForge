@@ -12,6 +12,7 @@ import {
   parseBuildkitAddress,
   parseDotEnv,
   parseManagedCommand,
+  parseRegistryHost,
   resolveStateDirectory,
 } from "./runtime.mjs";
 
@@ -106,6 +107,12 @@ describe("local runtime helpers", () => {
     expect(() => parseManagedCommand('["/usr/local/bin/buildkitd",""]')).toThrow(
       "non-empty JSON string array",
     );
+  });
+
+  it("accepts explicit local registry host endpoints", () => {
+    expect(parseRegistryHost("172.25.0.1:55000")).toBe("172.25.0.1:55000");
+    expect(() => parseRegistryHost("http://localhost:55000")).toThrow("host:port");
+    expect(() => parseRegistryHost("localhost")).toThrow("host:port");
   });
 
   it("scrubs application credentials from a managed BuildKit environment", () => {
