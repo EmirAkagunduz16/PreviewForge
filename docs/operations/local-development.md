@@ -34,7 +34,8 @@ sysctl settings, create a tunnel, or request GitHub/AWS credentials.
      ./scripts/m4-runner/stage-rootless-runtime-config.sh
    ```
 
-   Restart the dedicated rootless stack after staging. Set
+   Stop the dedicated rootless stack before restaging when it was previously run; the stop helper
+   removes the exact ephemeral RootlessKit state directory. Restart the stack after staging. Set
    `PREVIEWFORGE_REGISTRY_HOST` to the same `host:port` only when the derived
    gateway is not suitable for the host; `local:up` derives it automatically
    when the configured value is the default `localhost:55000`.

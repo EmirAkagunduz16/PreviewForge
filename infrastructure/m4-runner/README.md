@@ -90,7 +90,8 @@ and uses `runs-on: ubuntu-24.04`. It performs these steps in order:
    mode. It executes `/usr/bin/rootlesskit` directly so Ubuntu's packaged per-binary AppArmor
    attachment is selected naturally. It also pins RootlessKit's state directory to
    `/var/tmp/previewforge-buildkit/rootlesskit-state` with mode `0700`. RootlessKit therefore does
-   not fall back to a random `/tmp/rootlesskit*` path.
+   not fall back to a random `/tmp/rootlesskit*` path. The matching stop helper removes this
+   exact ephemeral state directory so a later staging run never reuses stale namespace metadata.
 8. Verify the published RootlessKit child PID and API socket, a distinct child user namespace,
    the packaged `rootlesskit` AppArmor label, and UID/GID maps matching the dedicated user plus
    its configured subordinate ranges.
