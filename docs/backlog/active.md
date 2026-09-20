@@ -32,7 +32,7 @@ dependency.
   next_action: run direct HTTP/PostgreSQL and controlled-GitHub browser acceptance after the local dependencies and fixture path are available
   blocker: real acceptance needs PostgreSQL plus the controlled GitHub fixture/browser path; no completion claim from unit/build checks alone
   acceptance: an authenticated owner installs or selects the GitHub App, discovers and imports an authorized repository without copied IDs, sees actionable safe errors, and cannot observe another owner's installation or project
-  evidence: owner-scoped installation endpoint, safe import error codes, install CTA, repository picker, import form, and distinct auth/offline/setup/permission/validation UI implemented; focused API/web tests and builds pass
+  evidence: owner-scoped installation endpoint, safe import error codes, install CTA, repository picker, import form, and distinct auth/offline/setup/permission/validation UI implemented; focused API/web tests, full pnpm check, and builds pass; controlled browser acceptance remains pending
   evidence_commit: not-run
 
 - id: M9-LOCAL-ROUTING
@@ -60,7 +60,7 @@ dependency.
   next_action: execute the controlled fixture journey through browser/API/worker/runtime once the three foundation runtime gates are available; inspect exact residue and rerun cleanly
   blocker: implementation can proceed with credential-free fixtures; real browser/runtime acceptance still waits for M9-LOCAL-RUNTIME, M9-ONBOARDING, and M9-LOCAL-ROUTING
   acceptance: the complete browser journey passes with duplicate/reordered delivery safety, stale-SHA fencing, immutable digest routing, redaction, repeated close cleanup, rerun safety, and zero owned residue
-  evidence: deterministic M9 manifest/source, loopback GitHub OAuth/App/repository/source/Check fixture, and signed webhook journey runner implemented; manifest scan and endpoint smoke checks pass; full browser/runtime acceptance remains unclaimed
+  evidence: deterministic M9 manifest/source, loopback GitHub OAuth/App/repository/source/Check fixture, and signed webhook journey runner implemented; manifest scan, credential scan, full pnpm check, and endpoint smoke checks pass; full browser/runtime acceptance remains unclaimed
   evidence_commit: not-run
 
 - id: M9-ACCEPTANCE
